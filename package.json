@@ -1,0 +1,40 @@
+{
+  "name": "rosemary-maidcafe",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "gen:maid-manifest": "node scripts/generate-maid-image-manifest.mjs",
+    "next:dev": "npm run gen:maid-manifest && next dev src-next",
+    "next:build": "npm run gen:maid-manifest && next build src-next",
+    "dev": "tauri dev",
+    "build:desktop": "tauri build",
+    "tauri": "tauri",
+    "lint": "npm run gen:maid-manifest && next lint src-next"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.7.0",
+    "@tauri-apps/plugin-clipboard-manager": "2.3.0",
+    "@tauri-apps/plugin-dialog": "2.3.2",
+    "@tauri-apps/plugin-fs": "2.4.1",
+    "@tauri-apps/plugin-global-shortcut": "2.3.0",
+    "@tauri-apps/plugin-http": "2.5.1",
+    "@tauri-apps/plugin-notification": "2.3.0",
+    "@tauri-apps/plugin-os": "2.3.0",
+    "@tauri-apps/plugin-process": "2.3.0",
+    "@tauri-apps/plugin-shell": "2.3.0",
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.7.1",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "16.1.1",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
