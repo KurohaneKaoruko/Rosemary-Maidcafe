@@ -3,70 +3,115 @@
 import { useEffect, useCallback } from 'react';
 import { useGame } from './GameProvider';
 import { useGameLoop } from '@/hooks/useGameLoop';
+import { useFullscreenMode } from '@/hooks/useFullscreenMode';
+import { useDesktopFloatingMode } from '@/hooks/useDesktopFloatingMode';
+import { isFloatingWindowPanel } from '@/data/desktopUI';
+import { PanelType } from '@/types';
 
-/**
- * 游戏循环组件配置
- */
 interface GameLoopProps {
-  /** 游戏速度倍率 */
   speedMultiplier?: number;
-  /** 每个游戏tick对应的真实毫秒数 */
   tickInterval?: number;
-  /** 日结回调 */
   onDayEnd?: () => void;
-  /** 新一天开始回调 */
   onNewDay?: () => void;
 }
 
-/**
- * 游戏循环组件
- * 集成 useGameLoop hook，管理游戏暂停/继续，处理日结逻辑
- * Requirements: 3.3
- */
 export function GameLoop({
   speedMultiplier = 1,
   tickInterval = 1000,
 }: GameLoopProps) {
   const { state, dispatch } = useGame();
-  
-  // 使用游戏循环 hook
+  const { isFullscreen, toggleFullscreen, exitFullscreen } = useFullscreenMode();
+  const desktopFloatingMode = useDesktopFloatingMode();
+
   const { resetTimers } = useGameLoop(state, dispatch, {
     speedMultiplier,
     tickInterval,
   });
 
-  /**
-   * 切换暂停状态
-   */
   const togglePause = useCallback(() => {
     dispatch({ type: 'TOGGLE_PAUSE' });
   }, [dispatch]);
 
-  /**
-   * 添加键盘快捷键支持
-   */
+  const openDesktopPanel = useCallback(
+    (panel: PanelType) => {
+      if (desktopFloatingMode && isFloatingWindowPanel(panel)) {
+        dispatch({ type: 'OPEN_FLOATING_WINDOW', windowId: panel });
+        if (state.activePanel === panel) {
+          dispatch({ type: 'SET_ACTIVE_PANEL', panel: 'cafe' });
+        }
+        return;
+      }
+
+      dispatch({ type: 'SET_ACTIVE_PANEL', panel });
+    },
+    [desktopFloatingMode, dispatch, state.activePanel]
+  );
+
   useEffect(() => {
+    const isTextInputTarget = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      return (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      );
+    };
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      // 空格键切换暂停
+      if (isTextInputTarget(event.target)) {
+        return;
+      }
+
       if (event.code === 'Space' && !event.repeat) {
         event.preventDefault();
         togglePause();
+        return;
+      }
+
+      if (event.code === 'KeyF' && !event.repeat) {
+        event.preventDefault();
+        void toggleFullscreen();
+        return;
+      }
+
+      if (desktopFloatingMode && event.ctrlKey && !event.repeat) {
+        const shortcutPanelMap: Record<string, PanelType> = {
+          Digit1: 'cafe',
+          Digit2: 'maids',
+          Digit3: 'menu',
+          Digit4: 'facility',
+          Digit5: 'finance',
+          Digit6: 'tasks',
+          Digit7: 'achievements',
+          Digit8: 'settings',
+        };
+        const panel = shortcutPanelMap[event.code];
+        if (panel) {
+          event.preventDefault();
+          openDesktopPanel(panel);
+          return;
+        }
+      }
+
+      if (event.key === 'Escape' && isFullscreen) {
+        event.preventDefault();
+        void exitFullscreen();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePause]);
+  }, [desktopFloatingMode, exitFullscreen, isFullscreen, openDesktopPanel, toggleFullscreen, togglePause]);
 
   void resetTimers;
-  
+
   return null;
 }
 
-/**
- * 游戏循环控制器 Hook
- * 提供给其他组件使用的控制接口
- */
 export function useGameLoopControls() {
   const { state, dispatch } = useGame();
 

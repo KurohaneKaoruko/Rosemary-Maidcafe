@@ -25,6 +25,8 @@ interface FloatingWindowCardProps {
   children: React.ReactNode;
 }
 
+type InteractionMode = 'drag' | 'resize' | null;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
@@ -52,7 +54,25 @@ function FloatingWindowCard({
     originWidth: number;
     originHeight: number;
   } | null>(null);
-  const interactionModeRef = useRef<'drag' | 'resize' | null>(null);
+
+  const interactionModeRef = useRef<InteractionMode>(null);
+  const activePointerIdRef = useRef<number | null>(null);
+  const captureElementRef = useRef<HTMLElement | null>(null);
+  const latestWindowStateRef = useRef(windowState);
+  const onMoveRef = useRef(onMove);
+  const onResizeRef = useRef(onResize);
+
+  useEffect(() => {
+    latestWindowStateRef.current = windowState;
+  }, [windowState]);
+
+  useEffect(() => {
+    onMoveRef.current = onMove;
+  }, [onMove]);
+
+  useEffect(() => {
+    onResizeRef.current = onResize;
+  }, [onResize]);
 
   const getContainerBounds = useCallback(() => {
     const container = containerRef.current;
@@ -63,19 +83,25 @@ function FloatingWindowCard({
     return { width: rect.width, height: rect.height };
   }, [containerRef]);
 
-  const handleMouseMove = useCallback(
-    (event: MouseEvent) => {
+  const handlePointerMove = useCallback(
+    (event: PointerEvent) => {
+      if (activePointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      const currentWindow = latestWindowStateRef.current;
+
       if (interactionModeRef.current === 'drag' && dragStartRef.current) {
         const dragStart = dragStartRef.current;
         const deltaX = event.clientX - dragStart.pointerX;
         const deltaY = event.clientY - dragStart.pointerY;
         const { width, height } = getContainerBounds();
 
-        const maxX = Math.max(0, width - windowState.width);
-        const maxY = Math.max(0, height - (windowState.minimized ? 48 : windowState.height));
+        const maxX = Math.max(0, width - currentWindow.width);
+        const maxY = Math.max(0, height - (currentWindow.minimized ? 48 : currentWindow.height));
 
-        onMove(
-          windowState.id,
+        onMoveRef.current(
+          currentWindow.id,
           clamp(dragStart.originX + deltaX, 0, maxX),
           clamp(dragStart.originY + deltaY, 0, maxY)
         );
@@ -90,90 +116,149 @@ function FloatingWindowCard({
 
         const nextWidth = clamp(
           resizeStart.originWidth + deltaX,
-          windowState.minWidth,
-          Math.max(windowState.minWidth, width - windowState.x)
+          currentWindow.minWidth,
+          Math.max(currentWindow.minWidth, width - currentWindow.x)
         );
         const nextHeight = clamp(
           resizeStart.originHeight + deltaY,
-          windowState.minHeight,
-          Math.max(windowState.minHeight, height - windowState.y)
+          currentWindow.minHeight,
+          Math.max(currentWindow.minHeight, height - currentWindow.y)
         );
 
-        onResize(windowState.id, nextWidth, nextHeight);
+        onResizeRef.current(currentWindow.id, nextWidth, nextHeight);
       }
     },
-    [
-      getContainerBounds,
-      onMove,
-      onResize,
-      windowState.height,
-      windowState.id,
-      windowState.minHeight,
-      windowState.minWidth,
-      windowState.minimized,
-      windowState.width,
-      windowState.x,
-      windowState.y,
-    ]
+    [getContainerBounds]
   );
 
-  const handleMouseUp = useCallback(() => {
-    interactionModeRef.current = null;
-    dragStartRef.current = null;
-    resizeStartRef.current = null;
-    window.removeEventListener('mousemove', handleMouseMove);
-    window.removeEventListener('mouseup', handleMouseUp);
-    document.body.style.userSelect = '';
-  }, [handleMouseMove]);
-
-  useEffect(() => {
-    return () => {
-      handleMouseUp();
-    };
-  }, [handleMouseUp]);
-
-  const startDrag = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (event.button !== 0) {
+  const handlePointerUp = useCallback(
+    (event?: PointerEvent) => {
+      if (event && activePointerIdRef.current !== null && event.pointerId !== activePointerIdRef.current) {
         return;
       }
 
-      onFocus(windowState.id);
+      const previousMode = interactionModeRef.current;
+      const previousPointerId = activePointerIdRef.current;
+      const captureElement = captureElementRef.current;
+
+      if (
+        captureElement &&
+        previousPointerId !== null &&
+        captureElement.hasPointerCapture(previousPointerId)
+      ) {
+        captureElement.releasePointerCapture(previousPointerId);
+      }
+      captureElementRef.current = null;
+
+      if (previousMode === 'drag' && dragStartRef.current) {
+        const currentWindow = latestWindowStateRef.current;
+        const { width, height } = getContainerBounds();
+        const maxX = Math.max(0, width - currentWindow.width);
+        const maxY = Math.max(0, height - (currentWindow.minimized ? 48 : currentWindow.height));
+        const snapThreshold = 14;
+
+        let snappedX = currentWindow.x;
+        let snappedY = currentWindow.y;
+
+        if (snappedX <= snapThreshold) {
+          snappedX = 0;
+        } else if (snappedX >= maxX - snapThreshold) {
+          snappedX = maxX;
+        }
+
+        if (snappedY <= snapThreshold) {
+          snappedY = 0;
+        } else if (snappedY >= maxY - snapThreshold) {
+          snappedY = maxY;
+        }
+
+        if (snappedX !== currentWindow.x || snappedY !== currentWindow.y) {
+          onMoveRef.current(currentWindow.id, snappedX, snappedY);
+        }
+      }
+
+      interactionModeRef.current = null;
+      activePointerIdRef.current = null;
+      dragStartRef.current = null;
+      resizeStartRef.current = null;
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+      document.body.style.userSelect = '';
+    },
+    [getContainerBounds, handlePointerMove]
+  );
+
+  useEffect(() => {
+    return () => {
+      handlePointerUp();
+    };
+  }, [handlePointerUp]);
+
+  const startDrag = useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+
+      const target = event.target as HTMLElement;
+      if (target.closest('button')) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const currentWindow = latestWindowStateRef.current;
+      onFocus(currentWindow.id);
+
       interactionModeRef.current = 'drag';
+      activePointerIdRef.current = event.pointerId;
+      captureElementRef.current = event.currentTarget;
+      event.currentTarget.setPointerCapture(event.pointerId);
       dragStartRef.current = {
         pointerX: event.clientX,
         pointerY: event.clientY,
-        originX: windowState.x,
-        originY: windowState.y,
+        originX: currentWindow.x,
+        originY: currentWindow.y,
       };
+
       document.body.style.userSelect = 'none';
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+      window.addEventListener('pointercancel', handlePointerUp);
     },
-    [handleMouseMove, handleMouseUp, onFocus, windowState.id, windowState.x, windowState.y]
+    [handlePointerMove, handlePointerUp, onFocus]
   );
 
   const startResize = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      if (event.button !== 0) {
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) {
         return;
       }
 
       event.preventDefault();
       event.stopPropagation();
-      onFocus(windowState.id);
+
+      const currentWindow = latestWindowStateRef.current;
+      onFocus(currentWindow.id);
+
       interactionModeRef.current = 'resize';
+      activePointerIdRef.current = event.pointerId;
+      captureElementRef.current = event.currentTarget;
+      event.currentTarget.setPointerCapture(event.pointerId);
       resizeStartRef.current = {
         pointerX: event.clientX,
         pointerY: event.clientY,
-        originWidth: windowState.width,
-        originHeight: windowState.height,
+        originWidth: currentWindow.width,
+        originHeight: currentWindow.height,
       };
+
       document.body.style.userSelect = 'none';
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+      window.addEventListener('pointercancel', handlePointerUp);
     },
-    [handleMouseMove, handleMouseUp, onFocus, windowState.height, windowState.id, windowState.width]
+    [handlePointerMove, handlePointerUp, onFocus]
   );
 
   const handleFocus = useCallback(() => {
@@ -190,9 +275,9 @@ function FloatingWindowCard({
         height: windowState.minimized ? 'auto' : `${windowState.height}px`,
         zIndex: windowState.zIndex,
       }}
-      onMouseDown={handleFocus}
+      onPointerDown={handleFocus}
     >
-      <header className="floating-window__titlebar" onMouseDown={startDrag}>
+      <header className="floating-window__titlebar" onPointerDown={startDrag}>
         <div className="floating-window__title">
           <span className="floating-window__title-dot" />
           <span>{windowState.title}</span>
@@ -229,7 +314,7 @@ function FloatingWindowCard({
           <button
             type="button"
             className="floating-window__resizer"
-            onMouseDown={startResize}
+            onPointerDown={startResize}
             aria-label="调整窗口大小"
           />
         </>
@@ -309,6 +394,68 @@ export function FloatingWindowsLayer({ enabled }: FloatingWindowsLayerProps) {
     },
     [dispatch]
   );
+
+  useEffect(() => {
+    if (!enabled || openWindows.length === 0) {
+      return;
+    }
+
+    let rafId = 0;
+
+    const normalizeWindowBounds = () => {
+      const container = containerRef.current;
+      const bounds = container?.getBoundingClientRect();
+      const viewportWidth = bounds ? bounds.width : window.innerWidth;
+      const viewportHeight = bounds ? bounds.height : window.innerHeight;
+
+      for (const windowState of openWindows) {
+        const maxWidth = Math.max(windowState.minWidth, viewportWidth - 20);
+        const maxHeight = Math.max(windowState.minHeight, viewportHeight - 20);
+        const nextWidth = clamp(windowState.width, windowState.minWidth, maxWidth);
+        const nextHeight = clamp(windowState.height, windowState.minHeight, maxHeight);
+
+        const maxX = Math.max(0, viewportWidth - nextWidth);
+        const maxY = Math.max(0, viewportHeight - (windowState.minimized ? 50 : nextHeight));
+        const nextX = clamp(windowState.x, 0, maxX);
+        const nextY = clamp(windowState.y, 0, maxY);
+
+        if (nextWidth !== windowState.width || nextHeight !== windowState.height) {
+          dispatch({
+            type: 'RESIZE_FLOATING_WINDOW',
+            windowId: windowState.id,
+            width: nextWidth,
+            height: nextHeight,
+          });
+        }
+
+        if (nextX !== windowState.x || nextY !== windowState.y) {
+          dispatch({
+            type: 'MOVE_FLOATING_WINDOW',
+            windowId: windowState.id,
+            x: nextX,
+            y: nextY,
+          });
+        }
+      }
+    };
+
+    const scheduleNormalize = () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      rafId = window.requestAnimationFrame(normalizeWindowBounds);
+    };
+
+    scheduleNormalize();
+    window.addEventListener('resize', scheduleNormalize);
+
+    return () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener('resize', scheduleNormalize);
+    };
+  }, [dispatch, enabled, openWindows]);
 
   if (!enabled || openWindows.length === 0) {
     return null;

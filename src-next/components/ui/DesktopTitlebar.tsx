@@ -4,12 +4,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { formatDay, formatGameTime } from '@/utils/formatters';
 import { isTauriDesktop } from '@/utils/platform';
+import { useFullscreenMode } from '@/hooks/useFullscreenMode';
 
 type TauriWindowModule = typeof import('@tauri-apps/api/window');
 type AppWindow = ReturnType<TauriWindowModule['getCurrentWindow']>;
 
 export function DesktopTitlebar() {
   const { state } = useGame();
+  const { isFullscreen, toggleFullscreen } = useFullscreenMode();
   const [enabled, setEnabled] = useState(false);
   const [appWindow, setAppWindow] = useState<AppWindow | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -84,6 +86,10 @@ export function DesktopTitlebar() {
     setIsMaximized(maximized);
   }, [appWindow]);
 
+  const handleToggleFullscreen = useCallback(() => {
+    void toggleFullscreen();
+  }, [toggleFullscreen]);
+
   const handleClose = useCallback(async () => {
     if (!appWindow) {
       return;
@@ -97,7 +103,7 @@ export function DesktopTitlebar() {
 
   return (
     <header className="desktop-titlebar">
-      <div className="desktop-titlebar__drag" data-tauri-drag-region>
+      <div className="desktop-titlebar__drag" data-tauri-drag-region onDoubleClick={handleToggleMaximize}>
         <span className="desktop-titlebar__dot" />
         <span className="desktop-titlebar__name">迷迭香咖啡厅</span>
       </div>
@@ -112,6 +118,9 @@ export function DesktopTitlebar() {
         </button>
         <button type="button" onClick={handleToggleMaximize} className="desktop-control" aria-label="最大化">
           {isMaximized ? '◱' : '□'}
+        </button>
+        <button type="button" onClick={handleToggleFullscreen} className="desktop-control" aria-label="全屏切换">
+          {isFullscreen ? '⤫' : '⤢'}
         </button>
         <button type="button" onClick={handleClose} className="desktop-control desktop-control--danger" aria-label="关闭">
           x
