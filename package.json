@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "gen:maid-manifest": "node scripts/generate-maid-image-manifest.mjs",
-    "next:dev": "npm run gen:maid-manifest && next dev src-next",
+    "next:dev": "npm run gen:maid-manifest && next dev src-next --port 3000",
     "next:build": "npm run gen:maid-manifest && next build src-next",
     "dev": "tauri dev",
     "build:desktop": "tauri build",
@@ -27,8 +27,8 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "2.7.1",
     "@tailwindcss/postcss": "^4.0.0",
+    "@tauri-apps/cli": "2.7.1",
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
