@@ -7,7 +7,8 @@ import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { GAME_CONSTANTS } from '@/data/initialState';
-import { equipmentUpgradeCostMultiplier, equipmentEffectBonus } from '@/data/equipment';
+import { equipmentEffectBonus } from '@/data/equipment';
+import { getAreaUnlockCost, getCafeUpgradeCost, getEquipmentUpgradeCost } from '@/systems/facilitySystem';
 
 const areaLabels: Record<Area, string> = {
   main: '主厅',
@@ -30,13 +31,6 @@ const areaDescriptions: Record<Area, string> = {
   stage: '表演舞台，可举办特别活动',
 };
 
-const areaCosts: Record<Area, number> = {
-  main: 0,
-  outdoor: 2000,
-  vip_room: 5000,
-  stage: 8000,
-};
-
 type TabType = 'upgrade' | 'decorations' | 'equipment' | 'areas';
 
 export function FacilityPanel() {
@@ -46,13 +40,15 @@ export function FacilityPanel() {
   const { facility, finance } = state;
   const maxSeats = GAME_CONSTANTS.BASE_SEATS + (facility.cafeLevel - 1) * GAME_CONSTANTS.SEATS_PER_LEVEL;
   const nextLevelSeats = GAME_CONSTANTS.BASE_SEATS + facility.cafeLevel * GAME_CONSTANTS.SEATS_PER_LEVEL;
-  const upgradeCost = facility.cafeLevel * 500;
-  const canUpgrade = facility.cafeLevel < GAME_CONSTANTS.MAX_CAFE_LEVEL && finance.gold >= upgradeCost;
+  const upgradeCost = getCafeUpgradeCost(facility.cafeLevel);
+  const canUpgrade =
+    facility.cafeLevel < GAME_CONSTANTS.MAX_CAFE_LEVEL &&
+    Number.isFinite(upgradeCost) &&
+    finance.gold >= upgradeCost;
 
   const handleUpgradeCafe = () => {
     if (canUpgrade) {
       dispatch({ type: 'UPGRADE_CAFE' });
-      dispatch({ type: 'DEDUCT_GOLD', amount: upgradeCost });
     }
   };
 
@@ -60,26 +56,23 @@ export function FacilityPanel() {
     const decoration = facility.decorations.find((d) => d.id === decorationId);
     if (decoration && !decoration.purchased && finance.gold >= decoration.cost) {
       dispatch({ type: 'BUY_DECORATION', decorationId });
-      dispatch({ type: 'DEDUCT_GOLD', amount: decoration.cost });
     }
   };
 
   const handleUpgradeEquipment = (equipmentId: string) => {
     const equipment = facility.equipment.find((e) => e.id === equipmentId);
     if (equipment && equipment.level < equipment.maxLevel) {
-      const cost = Math.floor(equipment.upgradeCost * equipmentUpgradeCostMultiplier[equipment.level - 1]);
+      const cost = getEquipmentUpgradeCost(equipment);
       if (finance.gold >= cost) {
         dispatch({ type: 'UPGRADE_EQUIPMENT', equipmentId });
-        dispatch({ type: 'DEDUCT_GOLD', amount: cost });
       }
     }
   };
 
   const handleUnlockArea = (area: Area) => {
-    const cost = areaCosts[area];
+    const cost = getAreaUnlockCost(area);
     if (!facility.unlockedAreas.includes(area) && finance.gold >= cost) {
       dispatch({ type: 'UNLOCK_AREA', area });
-      dispatch({ type: 'DEDUCT_GOLD', amount: cost });
     }
   };
 
@@ -375,7 +368,7 @@ function EquipmentTab({ equipment, gold, onUpgrade }: EquipmentTabProps) {
             const isMaxLevel = equip.level >= equip.maxLevel;
             const upgradeCost = isMaxLevel
               ? 0
-              : Math.floor(equip.upgradeCost * equipmentUpgradeCostMultiplier[equip.level - 1]);
+              : getEquipmentUpgradeCost(equip);
             const canAfford = gold >= upgradeCost;
             const currentBonus = equipmentEffectBonus[equip.level - 1] || 0;
             const nextBonus = equipmentEffectBonus[equip.level] || 0;
@@ -463,7 +456,7 @@ function AreasTab({ unlockedAreas, gold, onUnlock }: AreasTabProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {allAreas.map((area) => {
             const isUnlocked = unlockedAreas.includes(area);
-            const cost = areaCosts[area];
+            const cost = getAreaUnlockCost(area);
             const canAfford = gold >= cost;
 
             return (

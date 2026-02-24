@@ -1,6 +1,7 @@
-import { GameState, Maid } from '@/types';
+import { DesktopUIState, FloatingWindowId, GameState, Maid } from '@/types';
 import { initialGameState, GAME_CONSTANTS } from '@/data/initialState';
 import { getRandomMaidImage, maidImagePool } from '@/data/maidImages';
+import { createInitialDesktopUIState, FLOATING_WINDOW_IDS } from '@/data/desktopUI';
 
 // 存储数据结构
 export interface SaveData {
@@ -31,6 +32,67 @@ function prepareStateForSave(state: GameState): GameState {
   };
 }
 
+function isFloatingWindowId(value: unknown): value is FloatingWindowId {
+  return typeof value === 'string' && FLOATING_WINDOW_IDS.includes(value as FloatingWindowId);
+}
+
+function normalizeDesktopUI(state: Partial<GameState>): DesktopUIState {
+  const fallback = createInitialDesktopUIState();
+  const candidate = state.desktopUI;
+
+  if (!candidate || typeof candidate !== 'object') {
+    return fallback;
+  }
+
+  const normalizedWindows = { ...fallback.floatingWindows };
+
+  for (const windowId of FLOATING_WINDOW_IDS) {
+    const defaultWindow = fallback.floatingWindows[windowId];
+    const loadedWindow = candidate.floatingWindows?.[windowId];
+
+    if (!loadedWindow || typeof loadedWindow !== 'object') {
+      continue;
+    }
+
+    normalizedWindows[windowId] = {
+      ...defaultWindow,
+      id: windowId,
+      title: defaultWindow.title,
+      open: Boolean(loadedWindow.open),
+      minimized: Boolean(loadedWindow.minimized),
+      x: Number.isFinite(loadedWindow.x) ? loadedWindow.x : defaultWindow.x,
+      y: Number.isFinite(loadedWindow.y) ? loadedWindow.y : defaultWindow.y,
+      width: Number.isFinite(loadedWindow.width) ? loadedWindow.width : defaultWindow.width,
+      height: Number.isFinite(loadedWindow.height) ? loadedWindow.height : defaultWindow.height,
+      minWidth: Number.isFinite(loadedWindow.minWidth) ? loadedWindow.minWidth : defaultWindow.minWidth,
+      minHeight: Number.isFinite(loadedWindow.minHeight) ? loadedWindow.minHeight : defaultWindow.minHeight,
+      zIndex: Number.isFinite(loadedWindow.zIndex) ? loadedWindow.zIndex : defaultWindow.zIndex,
+    };
+  }
+
+  const maxZIndex = Math.max(
+    ...FLOATING_WINDOW_IDS.map((windowId) => normalizedWindows[windowId].zIndex),
+    fallback.nextZIndex
+  );
+
+  const nextZIndex = Number.isFinite(candidate.nextZIndex)
+    ? Math.max(candidate.nextZIndex, maxZIndex + 1)
+    : maxZIndex + 1;
+
+  const activeWindowId =
+    isFloatingWindowId(candidate.activeWindowId) &&
+    normalizedWindows[candidate.activeWindowId].open &&
+    !normalizedWindows[candidate.activeWindowId].minimized
+      ? candidate.activeWindowId
+      : null;
+
+  return {
+    floatingWindows: normalizedWindows,
+    activeWindowId,
+    nextZIndex,
+  };
+}
+
 function normalizeLoadedState(state: GameState): GameState {
   return {
     ...state,
@@ -39,6 +101,7 @@ function normalizeLoadedState(state: GameState): GameState {
     notifications: Array.isArray(state.notifications) ? state.notifications : [],
     selectedMaidId: state.selectedMaidId ?? null,
     selectedCustomerId: state.selectedCustomerId ?? null,
+    desktopUI: normalizeDesktopUI(state),
     dailySummaryOpen: false,
   };
 }
@@ -391,7 +454,10 @@ export function getSaveInfo(): StorageResult<{ version: string; timestamp: numbe
  * @returns 初始游戏状态
  */
 export function getInitialState(): GameState {
-  return { ...initialGameState };
+  return {
+    ...initialGameState,
+    desktopUI: createInitialDesktopUIState(),
+  };
 }
 
 /**

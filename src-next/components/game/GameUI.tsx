@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useGame } from './GameProvider';
 import { useGameLoopControls } from './GameLoop';
 import { TopBar } from '@/components/ui/TopBar';
+import { DesktopTitlebar } from '@/components/ui/DesktopTitlebar';
 import { Navigation, NavigationBottom, NavigationSide } from '@/components/ui/Navigation';
 import { NotificationContainer } from '@/components/ui/Notification';
+import { FloatingWindowsLayer } from '@/components/ui/FloatingWindowsLayer';
 import { CafeView } from '@/components/cafe/CafeView';
 import { MaidPanel } from '@/components/panels/MaidPanel';
 import { MenuPanel } from '@/components/panels/MenuPanel';
@@ -18,6 +20,8 @@ import { HireMaidModal } from '@/components/modals/HireMaidModal';
 import { EventModal } from '@/components/modals/EventModal';
 import { DailySummaryModal } from '@/components/modals/DailySummaryModal';
 import { SaveLoadModal } from '@/components/modals/SaveLoadModal';
+import { useDesktopFloatingMode } from '@/hooks/useDesktopFloatingMode';
+import { isFloatingWindowPanel } from '@/data/desktopUI';
 import { GameEvent, Maid, GameState } from '@/types';
 import { hireCostByLevel } from '@/data/maidNames';
 
@@ -30,6 +34,7 @@ import { hireCostByLevel } from '@/data/maidNames';
 export function GameUI() {
   const { state, dispatch } = useGame();
   const { startNewDay } = useGameLoopControls();
+  const desktopFloatingMode = useDesktopFloatingMode();
   
   // Modal states
   const [showHireMaidModal, setShowHireMaidModal] = useState(false);
@@ -37,6 +42,16 @@ export function GameUI() {
   const [showSaveLoadModal, setShowSaveLoadModal] = useState(false);
   const [currentEvent, setCurrentEvent] = useState<GameEvent | null>(null);
   const [customersServedToday, setCustomersServedToday] = useState(0);
+
+  useEffect(() => {
+    if (!desktopFloatingMode || !isFloatingWindowPanel(state.activePanel)) {
+      return;
+    }
+
+    if (!state.desktopUI.floatingWindows[state.activePanel].open) {
+      dispatch({ type: 'SET_ACTIVE_PANEL', panel: 'cafe' });
+    }
+  }, [desktopFloatingMode, dispatch, state.activePanel, state.desktopUI.floatingWindows]);
 
   // Handle notification dismiss
   const handleDismissNotification = useCallback((notificationId: string) => {
@@ -77,6 +92,10 @@ export function GameUI() {
 
   // Render active panel based on state
   const renderActivePanel = () => {
+    if (desktopFloatingMode && isFloatingWindowPanel(state.activePanel)) {
+      return <CafeView />;
+    }
+
     switch (state.activePanel) {
       case 'cafe':
         return <CafeView />;
@@ -100,7 +119,9 @@ export function GameUI() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div className="h-screen flex flex-col bg-white desktop-app-shell">
+      <DesktopTitlebar />
+
       {/* Top Bar - Requirements: 9.2 */}
       <TopBar />
       
@@ -113,8 +134,9 @@ export function GameUI() {
         <NavigationSide />
         
         {/* Main Content */}
-        <main className="flex-1 overflow-auto pb-16 sm:pb-0">
+        <main className="relative flex-1 overflow-auto pb-16 sm:pb-0">
           {renderActivePanel()}
+          <FloatingWindowsLayer enabled={desktopFloatingMode} />
         </main>
       </div>
       

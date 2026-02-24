@@ -4,15 +4,15 @@ import { equipmentUpgradeCostMultiplier } from '@/data/equipment';
 // 咖啡厅升级成本（按等级）
 const CAFE_UPGRADE_COSTS: number[] = [
   0,      // Level 1 (初始)
-  500,    // Level 1 -> 2
-  1000,   // Level 2 -> 3
-  2000,   // Level 3 -> 4
-  3500,   // Level 4 -> 5
-  5500,   // Level 5 -> 6
-  8000,   // Level 6 -> 7
-  11000,  // Level 7 -> 8
-  15000,  // Level 8 -> 9
-  20000,  // Level 9 -> 10
+  1400,   // Level 1 -> 2
+  2300,   // Level 2 -> 3
+  3600,   // Level 3 -> 4
+  5200,   // Level 4 -> 5
+  7200,   // Level 5 -> 6
+  9600,   // Level 6 -> 7
+  12400,  // Level 7 -> 8
+  15600,  // Level 8 -> 9
+  19200,  // Level 9 -> 10
 ];
 
 // 区域解锁成本
