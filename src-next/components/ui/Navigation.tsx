@@ -3,6 +3,8 @@
 import React from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { useLandscapeMode } from '@/hooks/useLandscapeMode';
+import { useDesktopFloatingMode } from '@/hooks/useDesktopFloatingMode';
+import { isFloatingWindowPanel } from '@/data/desktopUI';
 import { PanelType } from '@/types';
 
 interface NavItem {
@@ -26,9 +28,25 @@ const navItems: NavItem[] = [
 export function Navigation() {
   const { state, dispatch } = useGame();
   const { activePanel } = state;
+  const desktopFloatingMode = useDesktopFloatingMode();
 
   const handleNavClick = (panel: PanelType) => {
+    if (desktopFloatingMode && isFloatingWindowPanel(panel)) {
+      dispatch({ type: 'OPEN_FLOATING_WINDOW', windowId: panel });
+      if (state.activePanel === panel) {
+        dispatch({ type: 'SET_ACTIVE_PANEL', panel: 'cafe' });
+      }
+      return;
+    }
+
     dispatch({ type: 'SET_ACTIVE_PANEL', panel });
+  };
+
+  const isPanelActive = (panel: PanelType): boolean => {
+    if (desktopFloatingMode && isFloatingWindowPanel(panel)) {
+      return state.desktopUI.floatingWindows[panel].open;
+    }
+    return activePanel === panel;
   };
 
   return (
@@ -39,7 +57,7 @@ export function Navigation() {
             <NavButton
               key={item.id}
               item={item}
-              isActive={activePanel === item.id}
+              isActive={isPanelActive(item.id)}
               onClick={() => handleNavClick(item.id)}
             />
           ))}
@@ -82,9 +100,25 @@ function NavButton({ item, isActive, onClick }: NavButtonProps) {
 export function NavigationVertical() {
   const { state, dispatch } = useGame();
   const { activePanel } = state;
+  const desktopFloatingMode = useDesktopFloatingMode();
 
   const handleNavClick = (panel: PanelType) => {
+    if (desktopFloatingMode && isFloatingWindowPanel(panel)) {
+      dispatch({ type: 'OPEN_FLOATING_WINDOW', windowId: panel });
+      if (state.activePanel === panel) {
+        dispatch({ type: 'SET_ACTIVE_PANEL', panel: 'cafe' });
+      }
+      return;
+    }
+
     dispatch({ type: 'SET_ACTIVE_PANEL', panel });
+  };
+
+  const isPanelActive = (panel: PanelType): boolean => {
+    if (desktopFloatingMode && isFloatingWindowPanel(panel)) {
+      return state.desktopUI.floatingWindows[panel].open;
+    }
+    return activePanel === panel;
   };
 
   return (
@@ -99,12 +133,12 @@ export function NavigationVertical() {
               font-medium text-sm
               transition-all duration-200
               ${
-                activePanel === item.id
+                isPanelActive(item.id)
                   ? 'bg-pink-100 text-pink-600 shadow-sm border border-pink-200'
                   : 'text-gray-600 hover:bg-pink-50 hover:text-pink-500'
               }
             `}
-            aria-current={activePanel === item.id ? 'page' : undefined}
+            aria-current={isPanelActive(item.id) ? 'page' : undefined}
           >
             <span className="text-lg">{item.icon}</span>
             <span className="hidden sm:inline">{item.label}</span>
@@ -120,9 +154,25 @@ export function NavigationBottom() {
   const { state, dispatch } = useGame();
   const { activePanel } = state;
   const isLandscape = useLandscapeMode();
+  const desktopFloatingMode = useDesktopFloatingMode();
 
   const handleNavClick = (panel: PanelType) => {
+    if (desktopFloatingMode && isFloatingWindowPanel(panel)) {
+      dispatch({ type: 'OPEN_FLOATING_WINDOW', windowId: panel });
+      if (state.activePanel === panel) {
+        dispatch({ type: 'SET_ACTIVE_PANEL', panel: 'cafe' });
+      }
+      return;
+    }
+
     dispatch({ type: 'SET_ACTIVE_PANEL', panel });
+  };
+
+  const isPanelActive = (panel: PanelType): boolean => {
+    if (desktopFloatingMode && isFloatingWindowPanel(panel)) {
+      return state.desktopUI.floatingWindows[panel].open;
+    }
+    return activePanel === panel;
   };
 
   // Hide bottom navigation in landscape mode (Requirements: 8.3)
@@ -137,7 +187,7 @@ export function NavigationBottom() {
           <NavBottomButton
             key={item.id}
             item={item}
-            isActive={activePanel === item.id}
+            isActive={isPanelActive(item.id)}
             onClick={() => handleNavClick(item.id)}
           />
         ))}
@@ -151,9 +201,25 @@ export function NavigationSide() {
   const { state, dispatch } = useGame();
   const { activePanel } = state;
   const isLandscape = useLandscapeMode();
+  const desktopFloatingMode = useDesktopFloatingMode();
 
   const handleNavClick = (panel: PanelType) => {
+    if (desktopFloatingMode && isFloatingWindowPanel(panel)) {
+      dispatch({ type: 'OPEN_FLOATING_WINDOW', windowId: panel });
+      if (state.activePanel === panel) {
+        dispatch({ type: 'SET_ACTIVE_PANEL', panel: 'cafe' });
+      }
+      return;
+    }
+
     dispatch({ type: 'SET_ACTIVE_PANEL', panel });
+  };
+
+  const isPanelActive = (panel: PanelType): boolean => {
+    if (desktopFloatingMode && isFloatingWindowPanel(panel)) {
+      return state.desktopUI.floatingWindows[panel].open;
+    }
+    return activePanel === panel;
   };
 
   // Only show side navigation in landscape mode
@@ -168,8 +234,8 @@ export function NavigationSide() {
           <button
             key={item.id}
             onClick={() => handleNavClick(item.id)}
-            className={`nav-item ${activePanel === item.id ? 'active' : ''}`}
-            aria-current={activePanel === item.id ? 'page' : undefined}
+            className={`nav-item ${isPanelActive(item.id) ? 'active' : ''}`}
+            aria-current={isPanelActive(item.id) ? 'page' : undefined}
           >
             <span className="nav-icon">{item.icon}</span>
             <span className="nav-label">{item.shortLabel || item.label}</span>

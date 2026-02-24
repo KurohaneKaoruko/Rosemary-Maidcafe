@@ -4,6 +4,7 @@ import { defaultAchievements } from './achievements';
 import { defaultDecorations } from './decorations';
 import { defaultEquipment } from './equipment';
 import { defaultTasks } from './tasks';
+import { createInitialDesktopUIState } from './desktopUI';
 
 export const initialGameState: GameState = {
   // 时间设置
@@ -64,6 +65,7 @@ export const initialGameState: GameState = {
   selectedMaidId: null,
   selectedCustomerId: null,
   activePanel: 'cafe',
+  desktopUI: createInitialDesktopUIState(),
   notifications: [],
   dailySummaryOpen: false,
 };

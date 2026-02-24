@@ -1,9 +1,9 @@
 import {
   GameState,
   GameAction,
-  Area,
   DailyFinance,
   Season,
+  FloatingWindowId,
 } from '@/types';
 import { initialGameState, GAME_CONSTANTS } from '@/data/initialState';
 import { calculateEfficiency, startService, updateMaidStamina, updateServiceProgress as updateMaidServiceProgress } from '@/systems/maidSystem';
@@ -11,6 +11,7 @@ import { checkAchievements } from '@/systems/achievementSystem';
 import { calculateRewards, calculateSatisfaction, completeService, generateCustomer, generateOrder, getSpawnInterval, handlePatienceTimeout, shouldCustomerLeave, startCustomerService, updateCustomerServiceProgress, updatePatience } from '@/systems/customerSystem';
 import { calculateDailyOperatingCost } from '@/systems/financeSystem';
 import { applyTaskEvent, claimTaskReward, refreshDailyTasks } from '@/systems/taskSystem';
+import { getAreaUnlockCost, getCafeUpgradeCost, getEquipmentUpgradeCost } from '@/systems/facilitySystem';
 
 /**
  * 计算下一个季节
@@ -24,22 +25,18 @@ function getNextSeason(currentSeason: Season): Season {
 /**
  * 计算咖啡厅升级成本
  */
-function getCafeUpgradeCost(currentLevel: number): number {
-  return 500 * Math.pow(2, currentLevel - 1);
+function getTopFocusableWindowId(state: GameState): FloatingWindowId | null {
+  const focusableWindows = Object.values(state.desktopUI.floatingWindows)
+    .filter((windowState) => windowState.open && !windowState.minimized)
+    .sort((a, b) => b.zIndex - a.zIndex);
+
+  return focusableWindows.length > 0 ? focusableWindows[0].id : null;
 }
 
 /**
  * 计算区域解锁成本
  */
-function getAreaUnlockCost(area: Area): number {
-  const costs: Record<Area, number> = {
-    main: 0,
-    outdoor: 2000,
-    vip_room: 5000,
-    stage: 10000,
-  };
-  return costs[area];
-}
+
 
 /**
  * 游戏状态 Reducer
@@ -781,7 +778,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
 
       // 计算升级成本（随等级增加）
-      const upgradeCost = Math.floor(equipment.upgradeCost * Math.pow(1.5, equipment.level - 1));
+      const upgradeCost = getEquipmentUpgradeCost(equipment);
       if (state.finance.gold < upgradeCost) {
         return state;
       }
@@ -957,6 +954,187 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'OPEN_FLOATING_WINDOW': {
+      const windowState = state.desktopUI.floatingWindows[action.windowId];
+      const zIndex = state.desktopUI.nextZIndex;
+
+      return {
+        ...state,
+        desktopUI: {
+          ...state.desktopUI,
+          activeWindowId: action.windowId,
+          nextZIndex: zIndex + 1,
+          floatingWindows: {
+            ...state.desktopUI.floatingWindows,
+            [action.windowId]: {
+              ...windowState,
+              open: true,
+              minimized: false,
+              zIndex,
+            },
+          },
+        },
+      };
+    }
+
+    case 'CLOSE_FLOATING_WINDOW': {
+      const windowState = state.desktopUI.floatingWindows[action.windowId];
+      if (!windowState.open) {
+        return state;
+      }
+
+      const nextState: GameState = {
+        ...state,
+        desktopUI: {
+          ...state.desktopUI,
+          floatingWindows: {
+            ...state.desktopUI.floatingWindows,
+            [action.windowId]: {
+              ...windowState,
+              open: false,
+              minimized: false,
+            },
+          },
+        },
+      };
+
+      return {
+        ...nextState,
+        desktopUI: {
+          ...nextState.desktopUI,
+          activeWindowId:
+            state.desktopUI.activeWindowId === action.windowId
+              ? getTopFocusableWindowId(nextState)
+              : state.desktopUI.activeWindowId,
+        },
+      };
+    }
+
+    case 'FOCUS_FLOATING_WINDOW': {
+      const windowState = state.desktopUI.floatingWindows[action.windowId];
+      if (!windowState.open || windowState.minimized) {
+        return state;
+      }
+
+      const zIndex = state.desktopUI.nextZIndex;
+      return {
+        ...state,
+        desktopUI: {
+          ...state.desktopUI,
+          activeWindowId: action.windowId,
+          nextZIndex: zIndex + 1,
+          floatingWindows: {
+            ...state.desktopUI.floatingWindows,
+            [action.windowId]: {
+              ...windowState,
+              zIndex,
+            },
+          },
+        },
+      };
+    }
+
+    case 'MOVE_FLOATING_WINDOW': {
+      const windowState = state.desktopUI.floatingWindows[action.windowId];
+      if (!windowState.open) {
+        return state;
+      }
+
+      return {
+        ...state,
+        desktopUI: {
+          ...state.desktopUI,
+          floatingWindows: {
+            ...state.desktopUI.floatingWindows,
+            [action.windowId]: {
+              ...windowState,
+              x: action.x,
+              y: action.y,
+            },
+          },
+        },
+      };
+    }
+
+    case 'RESIZE_FLOATING_WINDOW': {
+      const windowState = state.desktopUI.floatingWindows[action.windowId];
+      if (!windowState.open) {
+        return state;
+      }
+
+      return {
+        ...state,
+        desktopUI: {
+          ...state.desktopUI,
+          floatingWindows: {
+            ...state.desktopUI.floatingWindows,
+            [action.windowId]: {
+              ...windowState,
+              width: action.width,
+              height: action.height,
+            },
+          },
+        },
+      };
+    }
+
+    case 'MINIMIZE_FLOATING_WINDOW': {
+      const windowState = state.desktopUI.floatingWindows[action.windowId];
+      if (!windowState.open || windowState.minimized) {
+        return state;
+      }
+
+      const nextState: GameState = {
+        ...state,
+        desktopUI: {
+          ...state.desktopUI,
+          floatingWindows: {
+            ...state.desktopUI.floatingWindows,
+            [action.windowId]: {
+              ...windowState,
+              minimized: true,
+            },
+          },
+        },
+      };
+
+      return {
+        ...nextState,
+        desktopUI: {
+          ...nextState.desktopUI,
+          activeWindowId:
+            state.desktopUI.activeWindowId === action.windowId
+              ? getTopFocusableWindowId(nextState)
+              : state.desktopUI.activeWindowId,
+        },
+      };
+    }
+
+    case 'RESTORE_FLOATING_WINDOW': {
+      const windowState = state.desktopUI.floatingWindows[action.windowId];
+      if (!windowState.open || !windowState.minimized) {
+        return state;
+      }
+
+      const zIndex = state.desktopUI.nextZIndex;
+      return {
+        ...state,
+        desktopUI: {
+          ...state.desktopUI,
+          activeWindowId: action.windowId,
+          nextZIndex: zIndex + 1,
+          floatingWindows: {
+            ...state.desktopUI.floatingWindows,
+            [action.windowId]: {
+              ...windowState,
+              minimized: false,
+              zIndex,
+            },
+          },
+        },
+      };
+    }
+
     case 'SELECT_MAID': {
       return {
         ...state,
@@ -997,6 +1175,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...action.state,
         runtime: action.state.runtime ?? { customerSpawnMs: 0, customerStatusTicks: {} },
+        desktopUI: action.state.desktopUI ?? initialGameState.desktopUI,
         dailySummaryOpen: false,
       };
     }

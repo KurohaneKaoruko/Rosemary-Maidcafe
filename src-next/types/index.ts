@@ -240,12 +240,33 @@ export interface Notification {
 // ==================== 游戏状态类型 ====================
 
 export type PanelType = 'cafe' | 'maids' | 'menu' | 'facility' | 'finance' | 'tasks' | 'achievements' | 'settings';
+export type FloatingWindowId = 'finance' | 'tasks' | 'achievements' | 'settings';
 
 export type GameSpeed = 0.5 | 1 | 2 | 4;
 
 export interface GameRuntime {
   customerSpawnMs: number;
   customerStatusTicks: Record<string, number>;
+}
+
+export interface FloatingWindowState {
+  id: FloatingWindowId;
+  title: string;
+  open: boolean;
+  minimized: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  minWidth: number;
+  minHeight: number;
+  zIndex: number;
+}
+
+export interface DesktopUIState {
+  floatingWindows: Record<FloatingWindowId, FloatingWindowState>;
+  activeWindowId: FloatingWindowId | null;
+  nextZIndex: number;
 }
 
 export interface GameState {
@@ -284,6 +305,7 @@ export interface GameState {
   selectedMaidId: string | null;
   selectedCustomerId: string | null;
   activePanel: PanelType;
+  desktopUI: DesktopUIState;
   notifications: Notification[];
   dailySummaryOpen: boolean;
 }
@@ -343,6 +365,13 @@ export type GameAction =
   
   // UI
   | { type: 'SET_ACTIVE_PANEL'; panel: PanelType }
+  | { type: 'OPEN_FLOATING_WINDOW'; windowId: FloatingWindowId }
+  | { type: 'CLOSE_FLOATING_WINDOW'; windowId: FloatingWindowId }
+  | { type: 'FOCUS_FLOATING_WINDOW'; windowId: FloatingWindowId }
+  | { type: 'MOVE_FLOATING_WINDOW'; windowId: FloatingWindowId; x: number; y: number }
+  | { type: 'RESIZE_FLOATING_WINDOW'; windowId: FloatingWindowId; width: number; height: number }
+  | { type: 'MINIMIZE_FLOATING_WINDOW'; windowId: FloatingWindowId }
+  | { type: 'RESTORE_FLOATING_WINDOW'; windowId: FloatingWindowId }
   | { type: 'SELECT_MAID'; maidId: string | null }
   | { type: 'SELECT_CUSTOMER'; customerId: string | null }
   | { type: 'ADD_NOTIFICATION'; notification: Notification }
