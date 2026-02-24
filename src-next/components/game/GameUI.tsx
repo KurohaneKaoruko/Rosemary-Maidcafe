@@ -5,6 +5,8 @@ import { useGame } from './GameProvider';
 import { useGameLoopControls } from './GameLoop';
 import { TopBar } from '@/components/ui/TopBar';
 import { DesktopTitlebar } from '@/components/ui/DesktopTitlebar';
+import { DesktopWindowToolbar } from '@/components/ui/DesktopWindowToolbar';
+import { DesktopDock } from '@/components/ui/DesktopDock';
 import { Navigation, NavigationBottom, NavigationSide } from '@/components/ui/Navigation';
 import { NotificationContainer } from '@/components/ui/Notification';
 import { FloatingWindowsLayer } from '@/components/ui/FloatingWindowsLayer';
@@ -119,29 +121,42 @@ export function GameUI() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-white desktop-app-shell">
+    <div className={`h-screen flex flex-col bg-white ${desktopFloatingMode ? 'desktop-app-shell' : ''}`}>
       <DesktopTitlebar />
 
       {/* Top Bar - Requirements: 9.2 */}
       <TopBar />
       
       {/* Navigation - Requirements: 9.3 */}
-      <Navigation />
+      {!desktopFloatingMode && <Navigation />}
       
       {/* Main Content Area with Side Navigation for Landscape - Requirements: 8.3, 9.1 */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Side Navigation for Landscape Mode */}
-        <NavigationSide />
-        
-        {/* Main Content */}
-        <main className="relative flex-1 overflow-auto pb-16 sm:pb-0">
-          {renderActivePanel()}
-          <FloatingWindowsLayer enabled={desktopFloatingMode} />
-        </main>
+      <div className={`flex-1 flex overflow-hidden ${desktopFloatingMode ? 'desktop-workbench' : ''}`}>
+        {desktopFloatingMode ? (
+          <>
+            <DesktopDock />
+            <main className="relative flex-1 overflow-hidden">
+              <DesktopWindowToolbar enabled={desktopFloatingMode} />
+              <div className="desktop-stage-shell">{renderActivePanel()}</div>
+              <FloatingWindowsLayer enabled={desktopFloatingMode} />
+            </main>
+          </>
+        ) : (
+          <>
+            {/* Side Navigation for Landscape Mode */}
+            <NavigationSide />
+            
+            {/* Main Content */}
+            <main className="relative flex-1 overflow-auto pb-16 sm:pb-0">
+              {renderActivePanel()}
+              <FloatingWindowsLayer enabled={desktopFloatingMode} />
+            </main>
+          </>
+        )}
       </div>
       
       {/* Bottom Navigation for Mobile (hidden in landscape) */}
-      <NavigationBottom />
+      {!desktopFloatingMode && <NavigationBottom />}
       
       {/* Notifications - Requirements: 9.8 */}
       <NotificationContainer
