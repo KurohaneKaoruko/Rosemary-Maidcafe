@@ -1,5 +1,5 @@
 from pathlib import Path
-from PIL import Image, ImageOps
+from PIL import Image, ImageFilter, ImageOps
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,32 +23,62 @@ PNG_SIZES = {
     "StoreLogo.png": 50,
 }
 
-ICO_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+ICO_SIZES = [
+    (16, 16),
+    (20, 20),
+    (24, 24),
+    (32, 32),
+    (40, 40),
+    (48, 48),
+    (64, 64),
+    (128, 128),
+    (256, 256),
+]
 ICNS_SIZES = [(16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512)]
 
 
-def make_square_rgba(source_path: Path) -> Image.Image:
+def make_icon_master(source_path: Path) -> Image.Image:
     image = Image.open(source_path).convert("RGBA")
-    side = min(image.width, image.height)
-    left = (image.width - side) // 2
-    top = (image.height - side) // 2
-    return image.crop((left, top, left + side, top + side))
+    if image.width == image.height:
+        return image
+
+    # Preserve full image content: pad to square without cropping.
+    side = max(image.width, image.height)
+    canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    offset_x = (side - image.width) // 2
+    offset_y = (side - image.height) // 2
+    canvas.paste(image, (offset_x, offset_y))
+    return canvas
+
+
+def render_icon_size(base_image: Image.Image, size: int) -> Image.Image:
+    target = ImageOps.fit(base_image, (size, size), method=Image.Resampling.LANCZOS)
+    if size <= 32:
+        target = target.filter(ImageFilter.UnsharpMask(radius=1.1, percent=200, threshold=2))
+    elif size <= 64:
+        target = target.filter(ImageFilter.UnsharpMask(radius=1.0, percent=170, threshold=2))
+    elif size <= 128:
+        target = target.filter(ImageFilter.UnsharpMask(radius=0.8, percent=130, threshold=1))
+    return target
 
 
 def save_png_targets(base_image: Image.Image) -> None:
     for file_name, size in PNG_SIZES.items():
-        target = ImageOps.fit(base_image, (size, size), method=Image.Resampling.LANCZOS)
+        target = render_icon_size(base_image, size)
         target.save(ICONS_DIR / file_name, format="PNG")
 
 
 def save_ico(base_image: Image.Image) -> None:
     icon_path = ICONS_DIR / "icon.ico"
-    base_image.save(icon_path, format="ICO", sizes=ICO_SIZES)
+    # Use largest generated icon as source and let PIL embed multi-size variants.
+    source = render_icon_size(base_image, 256)
+    source.save(icon_path, format="ICO", sizes=ICO_SIZES)
 
 
 def save_icns(base_image: Image.Image) -> None:
     icon_path = ICONS_DIR / "icon.icns"
-    base_image.save(icon_path, format="ICNS", sizes=ICNS_SIZES)
+    source = render_icon_size(base_image, 1024)
+    source.save(icon_path, format="ICNS", sizes=ICNS_SIZES)
 
 
 def main() -> None:
@@ -56,7 +86,7 @@ def main() -> None:
         raise FileNotFoundError(f"Source image not found: {SOURCE}")
     ICONS_DIR.mkdir(parents=True, exist_ok=True)
 
-    base = make_square_rgba(SOURCE)
+    base = make_icon_master(SOURCE)
     save_png_targets(base)
     save_ico(base)
     save_icns(base)
