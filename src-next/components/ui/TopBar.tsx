@@ -3,15 +3,12 @@
 import React from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { formatGameTime, formatGold, formatDay, getSeasonIcon, formatSeason } from '@/utils/formatters';
-import { useFullscreenMode } from '@/hooks/useFullscreenMode';
 import { useDesktopFloatingMode } from '@/hooks/useDesktopFloatingMode';
-import { Button } from './Button';
 import { SpeedControl } from './SpeedControl';
 
 export function TopBar() {
   const { state, dispatch } = useGame();
   const { day, time, season, isPaused, finance, reputation, gameSpeed } = state;
-  const { isFullscreen, toggleFullscreen } = useFullscreenMode();
   const desktopFloatingMode = useDesktopFloatingMode();
 
   const handleTogglePause = () => {
@@ -20,10 +17,6 @@ export function TopBar() {
 
   const handleSpeedChange = (speed: typeof gameSpeed) => {
     dispatch({ type: 'SET_GAME_SPEED', speed });
-  };
-
-  const handleToggleFullscreen = () => {
-    void toggleFullscreen();
   };
 
   return (
@@ -47,30 +40,22 @@ export function TopBar() {
             <span className="font-mono text-lg font-semibold text-gray-800">{formatGameTime(time)}</span>
           </div>
           <SpeedControl currentSpeed={gameSpeed} onSpeedChange={handleSpeedChange} />
-          {!desktopFloatingMode && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleToggleFullscreen}
-              className="border border-pink-100 bg-white/80 hover:bg-pink-50 text-pink-700"
-            >
-              {isFullscreen ? '退出全屏' : '全屏'}
-            </Button>
-          )}
-          <Button
-            variant={isPaused ? 'primary' : 'secondary'}
-            size="sm"
+          <button
             onClick={handleTogglePause}
-            leftIcon={isPaused ? <PlayIcon /> : <PauseIcon />}
-            className={isPaused ? '' : 'bg-pink-100 hover:bg-pink-200 text-pink-700 border-pink-200'}
+            className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+              isPaused
+                ? 'bg-pink-500 text-white border-pink-500'
+                : 'bg-pink-100 text-pink-700 border-pink-200 hover:bg-pink-200'
+            }`}
+            aria-label={isPaused ? '继续游戏' : '暂停游戏'}
           >
             {isPaused ? '继续' : '暂停'}
-          </Button>
+          </button>
           {desktopFloatingMode && (
             <div className="hidden xl:flex items-center gap-1.5 text-xs text-gray-500 bg-white/75 border border-pink-100 rounded-lg px-2 py-1">
-              <span>F 全屏</span>
-              <span className="text-pink-200">|</span>
               <span>Space 暂停</span>
+              <span className="text-pink-200">|</span>
+              <span>显示模式在设置中调整</span>
             </div>
           )}
         </div>
@@ -98,28 +83,17 @@ export function TopBar() {
             <span className="font-mono text-base font-semibold text-gray-800">{formatGameTime(time)}</span>
           </div>
 
-          <div className="flex items-center gap-1">
-            {!desktopFloatingMode && (
-              <button
-                onClick={handleToggleFullscreen}
-                className="touch-target flex items-center justify-center rounded-lg bg-white/90 text-pink-700 border border-pink-200 transition-all duration-150 active:scale-95"
-                aria-label={isFullscreen ? '退出全屏' : '全屏'}
-              >
-                {isFullscreen ? '⤫' : '⤢'}
-              </button>
-            )}
-            <button
-              onClick={handleTogglePause}
-              className={`touch-target flex items-center justify-center rounded-lg transition-all duration-150 active:scale-95 ${
-                isPaused
-                  ? 'bg-pink-500 text-white'
-                  : 'bg-pink-100 text-pink-700 border border-pink-200'
-              }`}
-              aria-label={isPaused ? '继续游戏' : '暂停游戏'}
-            >
-              {isPaused ? <PlayIcon /> : <PauseIcon />}
-            </button>
-          </div>
+          <button
+            onClick={handleTogglePause}
+            className={`touch-target flex items-center justify-center rounded-lg transition-all duration-150 active:scale-95 ${
+              isPaused
+                ? 'bg-pink-500 text-white'
+                : 'bg-pink-100 text-pink-700 border border-pink-200'
+            }`}
+            aria-label={isPaused ? '继续游戏' : '暂停游戏'}
+          >
+            {isPaused ? <PlayIcon /> : <PauseIcon />}
+          </button>
         </div>
 
         <div className="flex items-center justify-between gap-1.5">
@@ -151,9 +125,10 @@ export function TopBar() {
                 className={`
                   flex items-center justify-center px-1.5 py-1 rounded text-xs font-medium
                   transition-all duration-200
-                  ${gameSpeed === option.value
-                    ? 'bg-white text-pink-600 shadow-sm'
-                    : 'text-gray-600 hover:bg-white/50'
+                  ${
+                    gameSpeed === option.value
+                      ? 'bg-white text-pink-600 shadow-sm'
+                      : 'text-gray-600 hover:bg-white/50'
                   }
                 `}
                 aria-label={`游戏速度 ${option.label}`}

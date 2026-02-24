@@ -51,10 +51,11 @@
         "transparent": false,
         "decorations": false,
         "fullscreen": false,
-        "height": 600,
+        "height": 720,
         "resizable": true,
         "title": "迷迭香咖啡厅",
-        "width": 800,
+        "width": 1280,
+        "center": true,
         "useHttpsScheme": true
       }
     ],

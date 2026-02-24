@@ -144,6 +144,8 @@ import maid_f9a6_jpg from './f9a6.jpg';
 import maid_fd8c_jpg from './fd8c.jpg';
 import maid_fea8_jpg from './fea8.jpg';
 
+export type MaidImageAsset = StaticImageData | string;
+
 export const maidImageAssets = {
   '/maid-image/0064.jpg': maid_0064_jpg,
   '/maid-image/04d5.jpg': maid_04d5_jpg,
@@ -288,12 +290,74 @@ export const maidImageAssets = {
   '/maid-image/f9a6.jpg': maid_f9a6_jpg,
   '/maid-image/fd8c.jpg': maid_fd8c_jpg,
   '/maid-image/fea8.jpg': maid_fea8_jpg,
-} as const satisfies Record<string, StaticImageData>;
+} as const satisfies Record<string, MaidImageAsset>;
 
 export type MaidImagePath = keyof typeof maidImageAssets;
 
 export const maidImagePaths = Object.keys(maidImageAssets) as MaidImagePath[];
 
-export function resolveMaidImage(path: string): StaticImageData | null {
-  return maidImageAssets[path as MaidImagePath] ?? null;
+const maidImageByFileName = Object.fromEntries(
+  Object.entries(maidImageAssets).map(([assetPath, data]) => [assetPath.split('/').pop()!.toLowerCase(), data])
+) as Record<string, MaidImageAsset>;
+
+export function normalizeMaidImagePath(path: string): string {
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const withoutHash = trimmed.split('#')[0];
+  const withoutQuery = withoutHash.split('?')[0];
+  const normalizedSlashes = withoutQuery.replace(/\\\\/g, '/');
+
+  let pathname = normalizedSlashes;
+  if (/^https?:\/\//i.test(normalizedSlashes)) {
+    try {
+      pathname = new URL(normalizedSlashes).pathname;
+    } catch {
+      pathname = normalizedSlashes;
+    }
+  }
+
+  let decoded = pathname;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    decoded = pathname;
+  }
+
+  const lowered = decoded.toLowerCase();
+  const marker = '/maid-image/';
+  const markerIndex = lowered.lastIndexOf(marker);
+  if (markerIndex >= 0) {
+    const suffix = decoded.slice(markerIndex);
+    const fileName = suffix.split('/').pop();
+    return fileName ? `${marker}${fileName.toLowerCase()}` : '';
+  }
+
+  const fileName = decoded.split('/').pop();
+  if (!fileName) {
+    return '';
+  }
+
+  return `${marker}${fileName.toLowerCase()}`;
+}
+
+export function resolveMaidImage(path: string): MaidImageAsset | null {
+  const normalizedPath = normalizeMaidImagePath(path);
+  if (!normalizedPath) {
+    return null;
+  }
+
+  const directMatch = maidImageAssets[normalizedPath as MaidImagePath];
+  if (directMatch) {
+    return directMatch;
+  }
+
+  const fileName = normalizedPath.split('/').pop();
+  if (!fileName) {
+    return null;
+  }
+
+  return maidImageByFileName[fileName.toLowerCase()] ?? null;
 }

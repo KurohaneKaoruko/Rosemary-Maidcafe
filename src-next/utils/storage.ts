@@ -1,6 +1,6 @@
 import { DesktopUIState, FloatingWindowId, GameState, Maid } from '@/types';
 import { initialGameState, GAME_CONSTANTS } from '@/data/initialState';
-import { getRandomMaidImage, maidImagePool } from '@/data/maidImages';
+import { getRandomMaidImage, maidImagePool, normalizeMaidAvatarPath } from '@/data/maidImages';
 import { createInitialDesktopUIState, FLOATING_WINDOW_IDS } from '@/data/desktopUI';
 
 // 存储数据结构
@@ -468,12 +468,18 @@ export function getInitialState(): GameState {
  */
 export function migrateMaidAvatars(state: GameState): GameState {
   const usedImages: string[] = [];
+  const imagePoolSet = new Set(maidImagePool);
   
   const migratedMaids: Maid[] = state.maids.map((maid) => {
-    // Keep existing avatar when it is still in the current image pool.
-    if (maid.avatar && maidImagePool.includes(maid.avatar)) {
-      usedImages.push(maid.avatar);
-      return maid;
+    const normalizedAvatar = maid.avatar ? normalizeMaidAvatarPath(maid.avatar) : '';
+
+    // Keep existing avatar when it can be normalized to a known image path.
+    if (normalizedAvatar && imagePoolSet.has(normalizedAvatar)) {
+      usedImages.push(normalizedAvatar);
+      return {
+        ...maid,
+        avatar: normalizedAvatar,
+      };
     }
     
     // 分配新的图片
