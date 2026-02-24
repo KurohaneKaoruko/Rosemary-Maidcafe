@@ -1,18 +1,35 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { useAudio } from '@/components/game/AudioProvider';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { deleteSave, exportSave, downloadSave } from '@/utils/storage';
+import { DisplayMode, useDisplaySettings } from '@/hooks/useDisplaySettings';
 
 export function SettingsPanel() {
   const { state, dispatch } = useGame();
   const { settings, setMuted, setBgmEnabled, setSfxEnabled, setBgmVolume, setSfxVolume, playSfx } = useAudio();
+  const {
+    isDesktop,
+    mode,
+    resolutionId,
+    resolutions,
+    isApplying,
+    lastError,
+    applySettings,
+  } = useDisplaySettings();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteStep, setDeleteStep] = useState(0);
+  const [pendingMode, setPendingMode] = useState<DisplayMode>(mode);
+  const [pendingResolutionId, setPendingResolutionId] = useState<string>(resolutionId);
+
+  useEffect(() => {
+    setPendingMode(mode);
+    setPendingResolutionId(resolutionId);
+  }, [mode, resolutionId]);
 
   // 导出存档
   const handleExportSave = () => {
@@ -53,6 +70,23 @@ export function SettingsPanel() {
     setDeleteStep(0);
   };
 
+  const handleApplyDisplaySettings = async () => {
+    const success = await applySettings({
+      mode: pendingMode,
+      resolutionId: pendingResolutionId,
+    });
+
+    dispatch({
+      type: 'ADD_NOTIFICATION',
+      notification: {
+        id: `display_settings_${Date.now()}`,
+        type: success ? 'success' : 'warning',
+        message: success ? '显示设置已应用' : '显示设置应用失败',
+        timestamp: Date.now(),
+      },
+    });
+  };
+
   return (
     <div className="h-full flex flex-col gap-4 p-4 overflow-auto">
       {/* Header */}
@@ -61,6 +95,81 @@ export function SettingsPanel() {
           ⚙️ 设置
         </h2>
       </div>
+
+      {/* Game Info */}
+      <Card>
+        <CardHeader>🖥️ 显示设置</CardHeader>
+        <CardBody>
+          {!isDesktop ? (
+            <p className="text-sm text-gray-500">当前环境不支持窗口模式和分辨率调整。</p>
+          ) : (
+            <div className="space-y-4 text-sm">
+              <div className="space-y-2">
+                <div className="text-gray-600 font-medium">显示模式</div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={`px-3 py-1.5 rounded-lg border transition-colors ${
+                      pendingMode === 'windowed'
+                        ? 'bg-pink-100 text-pink-700 border-pink-200'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-pink-200 hover:text-pink-600'
+                    }`}
+                    onClick={() => setPendingMode('windowed')}
+                  >
+                    窗口模式
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-3 py-1.5 rounded-lg border transition-colors ${
+                      pendingMode === 'fullscreen'
+                        ? 'bg-pink-100 text-pink-700 border-pink-200'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-pink-200 hover:text-pink-600'
+                    }`}
+                    onClick={() => setPendingMode('fullscreen')}
+                  >
+                    全屏模式
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-gray-600 font-medium">分辨率（默认 1080p）</div>
+                <select
+                  value={pendingResolutionId}
+                  onChange={(event) => setPendingResolutionId(event.target.value)}
+                  disabled={pendingMode === 'fullscreen'}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 bg-white text-gray-700 disabled:opacity-50"
+                >
+                  {resolutions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400">
+                  全屏模式下分辨率用于返回窗口模式时生效。
+                </p>
+                <p className="text-xs text-gray-400">
+                  如果目标分辨率超过当前屏幕可用范围，会自动缩放到可见尺寸。
+                </p>
+              </div>
+
+              {lastError && (
+                <p className="text-xs text-red-500">{lastError}</p>
+              )}
+
+              <Button
+                variant="primary"
+                onClick={handleApplyDisplaySettings}
+                disabled={isApplying}
+                className="w-full sm:w-auto"
+              >
+                {isApplying ? '应用中...' : '应用显示设置'}
+              </Button>
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       {/* Game Info */}
       <Card>

@@ -2,7 +2,6 @@
 
 import React, { useCallback } from 'react';
 import { useGame } from '@/components/game/GameProvider';
-import { useFullscreenMode } from '@/hooks/useFullscreenMode';
 import { isFloatingWindowPanel } from '@/data/desktopUI';
 import { PanelType } from '@/types';
 
@@ -13,14 +12,14 @@ interface DockItem {
 }
 
 const dockItems: DockItem[] = [
-  { id: 'cafe', label: 'Cafe', icon: 'C' },
-  { id: 'maids', label: 'Maid', icon: 'M' },
-  { id: 'menu', label: 'Menu', icon: 'N' },
-  { id: 'facility', label: 'Build', icon: 'B' },
-  { id: 'finance', label: 'Cash', icon: 'F' },
-  { id: 'tasks', label: 'Task', icon: 'T' },
-  { id: 'achievements', label: 'Medal', icon: 'A' },
-  { id: 'settings', label: 'Config', icon: 'S' },
+  { id: 'cafe', label: '咖啡厅', icon: '☕' },
+  { id: 'maids', label: '女仆', icon: '👧' },
+  { id: 'menu', label: '菜单', icon: '📋' },
+  { id: 'facility', label: '设施', icon: '🏗' },
+  { id: 'finance', label: '财务', icon: '💰' },
+  { id: 'tasks', label: '任务', icon: '🎯' },
+  { id: 'achievements', label: '成就', icon: '🏆' },
+  { id: 'settings', label: '设置', icon: '⚙' },
 ];
 
 function DockButton({
@@ -50,7 +49,6 @@ function DockButton({
 
 export function DesktopDock() {
   const { state, dispatch } = useGame();
-  const { isFullscreen, toggleFullscreen } = useFullscreenMode();
 
   const handleSelectPanel = useCallback(
     (panel: PanelType) => {
@@ -81,12 +79,8 @@ export function DesktopDock() {
     dispatch({ type: 'TOGGLE_PAUSE' });
   }, [dispatch]);
 
-  const handleToggleFullscreen = useCallback(() => {
-    void toggleFullscreen();
-  }, [toggleFullscreen]);
-
   return (
-    <aside className="desktop-dock" aria-label="Desktop Dock">
+    <aside className="desktop-dock" aria-label="桌面导航栏">
       <div className="desktop-dock__group">
         {dockItems.map((item) => (
           <DockButton
@@ -101,16 +95,10 @@ export function DesktopDock() {
 
       <div className="desktop-dock__group desktop-dock__group--footer">
         <DockButton
-          icon={state.isPaused ? 'P' : 'R'}
-          label={state.isPaused ? 'Resume' : 'Pause'}
+          icon={state.isPaused ? '▶' : '⏸'}
+          label={state.isPaused ? '继续' : '暂停'}
           active={state.isPaused}
           onClick={handleTogglePause}
-        />
-        <DockButton
-          icon={isFullscreen ? 'X' : 'O'}
-          label={isFullscreen ? 'Window' : 'Fullscreen'}
-          active={isFullscreen}
-          onClick={handleToggleFullscreen}
         />
       </div>
     </aside>

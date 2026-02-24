@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
+import Image, { type StaticImageData } from 'next/image';
 import { resolveMaidImage } from '@/assets/maid-image';
 
 export type MaidAvatarSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -44,6 +44,11 @@ export function MaidAvatar({
 
   // Resolve legacy avatar path (e.g. /maid-image/xxxx.jpg) to a static import for Next optimization.
   const optimizedSource = src ? resolveMaidImage(src) : null;
+  const supportsBlurPlaceholder =
+    !!optimizedSource &&
+    typeof optimizedSource !== 'string' &&
+    typeof (optimizedSource as StaticImageData).blurDataURL === 'string' &&
+    ((optimizedSource as StaticImageData).blurDataURL?.length ?? 0) > 0;
 
   // Show fallback emoji if no valid image or error occurred
   if (!optimizedSource || hasError) {
@@ -103,7 +108,7 @@ export function MaidAvatar({
           setIsLoading(false);
         }}
         loading="lazy"
-        placeholder="blur"
+        placeholder={supportsBlurPlaceholder ? 'blur' : 'empty'}
         sizes={`${config.width}px`}
       />
     </div>

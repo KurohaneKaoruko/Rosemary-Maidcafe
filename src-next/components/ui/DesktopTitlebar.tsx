@@ -4,14 +4,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { formatDay, formatGameTime } from '@/utils/formatters';
 import { isTauriDesktop } from '@/utils/platform';
-import { useFullscreenMode } from '@/hooks/useFullscreenMode';
 
 type TauriWindowModule = typeof import('@tauri-apps/api/window');
 type AppWindow = ReturnType<TauriWindowModule['getCurrentWindow']>;
 
 export function DesktopTitlebar() {
   const { state } = useGame();
-  const { isFullscreen, toggleFullscreen } = useFullscreenMode();
   const [enabled, setEnabled] = useState(false);
   const [appWindow, setAppWindow] = useState<AppWindow | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -81,14 +79,20 @@ export function DesktopTitlebar() {
     if (!appWindow) {
       return;
     }
-    await appWindow.toggleMaximize();
-    const maximized = await appWindow.isMaximized();
-    setIsMaximized(maximized);
-  }, [appWindow]);
+    try {
+      const maximized = await appWindow.isMaximized();
+      if (maximized) {
+        await appWindow.unmaximize();
+      } else {
+        await appWindow.maximize();
+      }
 
-  const handleToggleFullscreen = useCallback(() => {
-    void toggleFullscreen();
-  }, [toggleFullscreen]);
+      const nextMaximized = await appWindow.isMaximized();
+      setIsMaximized(nextMaximized);
+    } catch {
+      // Ignore maximize toggling failures when window permissions differ across targets.
+    }
+  }, [appWindow]);
 
   const handleClose = useCallback(async () => {
     if (!appWindow) {
@@ -118,9 +122,6 @@ export function DesktopTitlebar() {
         </button>
         <button type="button" onClick={handleToggleMaximize} className="desktop-control" aria-label="最大化">
           {isMaximized ? '◱' : '□'}
-        </button>
-        <button type="button" onClick={handleToggleFullscreen} className="desktop-control" aria-label="全屏切换">
-          {isFullscreen ? '⤫' : '⤢'}
         </button>
         <button type="button" onClick={handleClose} className="desktop-control desktop-control--danger" aria-label="关闭">
           x

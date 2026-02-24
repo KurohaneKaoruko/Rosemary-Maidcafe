@@ -3,7 +3,6 @@
 import { useEffect, useCallback } from 'react';
 import { useGame } from './GameProvider';
 import { useGameLoop } from '@/hooks/useGameLoop';
-import { useFullscreenMode } from '@/hooks/useFullscreenMode';
 import { useDesktopFloatingMode } from '@/hooks/useDesktopFloatingMode';
 import { isFloatingWindowPanel } from '@/data/desktopUI';
 import { PanelType } from '@/types';
@@ -20,7 +19,6 @@ export function GameLoop({
   tickInterval = 1000,
 }: GameLoopProps) {
   const { state, dispatch } = useGame();
-  const { isFullscreen, toggleFullscreen, exitFullscreen } = useFullscreenMode();
   const desktopFloatingMode = useDesktopFloatingMode();
 
   const { resetTimers } = useGameLoop(state, dispatch, {
@@ -72,12 +70,6 @@ export function GameLoop({
         return;
       }
 
-      if (event.code === 'KeyF' && !event.repeat) {
-        event.preventDefault();
-        void toggleFullscreen();
-        return;
-      }
-
       if (desktopFloatingMode && event.ctrlKey && !event.repeat) {
         const shortcutPanelMap: Record<string, PanelType> = {
           Digit1: 'cafe',
@@ -96,16 +88,11 @@ export function GameLoop({
           return;
         }
       }
-
-      if (event.key === 'Escape' && isFullscreen) {
-        event.preventDefault();
-        void exitFullscreen();
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [desktopFloatingMode, exitFullscreen, isFullscreen, openDesktopPanel, toggleFullscreen, togglePause]);
+  }, [desktopFloatingMode, openDesktopPanel, togglePause]);
 
   void resetTimers;
 
