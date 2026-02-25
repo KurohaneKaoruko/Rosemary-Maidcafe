@@ -68,12 +68,13 @@ const customerPatienceRange: Record<CustomerType, { min: number; max: number }> 
  */
 function selectCustomerType(reputation: number): CustomerType {
   const types: CustomerType[] = ['regular', 'vip', 'critic', 'group'];
+  const clampedReputation = clamp(reputation, 0, 100);
   
   // 计算每种类型的实际权重
   const weights = types.map(type => {
     const config = customerTypeWeights[type];
     // 声望越高，特殊顾客出现概率越高
-    return config.baseWeight + (reputation / 100) * config.reputationBonus * 100;
+    return config.baseWeight + (clampedReputation / 100) * config.reputationBonus * 100;
   });
   
   const totalWeight = weights.reduce((sum, w) => sum + w, 0);
@@ -101,10 +102,8 @@ export function generateCustomer(reputation: number, season: Season): Customer {
   
   const firstName = randomChoice(customerFirstNames);
   const lastName = randomChoice(customerLastNames);
-  
-  // 季节可能影响顾客类型概率（未来扩展）
-  // 目前仅用于记录，确保参数被使用
-  const seasonalModifier = season ? 1 : 1;
+  // Keep the season parameter for future gameplay expansion.
+  void season;
   
   const customer: Customer = {
     id: generateId(),
@@ -116,7 +115,7 @@ export function generateCustomer(reputation: number, season: Season): Customer {
       totalPrice: 0,
       preparedItems: [],
     },
-    patience: randomInt(patienceRange.min, patienceRange.max) * seasonalModifier,
+    patience: randomInt(patienceRange.min, patienceRange.max),
     satisfaction: 50, // 初始满意度为中等
     status: 'waiting_seat',
     arrivalTime: Date.now(),
@@ -187,7 +186,11 @@ export function generateOrder(customer: Customer, menuItems: MenuItem[], season:
   const selectedItems: OrderItem[] = [];
   const selectedIds = new Set<string>();
   
-  for (let i = 0; i < orderCount; i++) {
+  // Avoid duplicate-pick stalls by allowing bounded retries.
+  const maxAttempts = orderCount * 2;
+  let attempts = 0;
+  while (selectedItems.length < orderCount && attempts < maxAttempts) {
+    attempts += 1;
     let random = Math.random() * totalWeight;
     
     for (const wi of weightedItems) {
@@ -226,15 +229,19 @@ export function generateOrder(customer: Customer, menuItems: MenuItem[], season:
  * @param waitTime 等待时间（分钟）
  */
 export function calculateSatisfaction(maid: Maid, customer: Customer, waitTime: number): number {
+  if (!maid || !customer) {
+    return 50;
+  }
+
   // 基础满意度 50
   let satisfaction = 50;
   
   // 女仆魅力加成 (0-25分)
-  const charmBonus = (maid.stats.charm / 100) * 25;
+  const charmBonus = (clamp(maid.stats?.charm ?? 50, 0, 100) / 100) * 25;
   satisfaction += charmBonus;
   
   // 女仆技能加成 (0-25分)
-  const skillBonus = (maid.stats.skill / 100) * 25;
+  const skillBonus = (clamp(maid.stats?.skill ?? 50, 0, 100) / 100) * 25;
   satisfaction += skillBonus;
   
   // 等待时间惩罚
@@ -264,15 +271,17 @@ export function calculateSatisfaction(maid: Maid, customer: Customer, waitTime: 
   
   // 女仆体力影响
   // 体力低于50%时，满意度略微降低
-  if (maid.stamina < 50) {
-    const staminaPenalty = ((50 - maid.stamina) / 50) * 10;
+  const maidStamina = maid.stamina ?? 100;
+  if (maidStamina < 50) {
+    const staminaPenalty = ((50 - maidStamina) / 50) * 10;
     satisfaction -= staminaPenalty;
   }
   
   // 女仆心情影响
   // 心情低于50%时，满意度略微降低
-  if (maid.mood < 50) {
-    const moodPenalty = ((50 - maid.mood) / 50) * 10;
+  const maidMood = maid.mood ?? 100;
+  if (maidMood < 50) {
+    const moodPenalty = ((50 - maidMood) / 50) * 10;
     satisfaction -= moodPenalty;
   }
   
@@ -373,14 +382,17 @@ export function updatePatience(customer: Customer, deltaMinutes: number): Custom
  * @param cafeLevel 咖啡厅等级 (1-10)
  */
 export function getSpawnInterval(reputation: number, cafeLevel: number): number {
+  const normalizedReputation = clamp(reputation, 0, 100);
+  const normalizedLevel = clamp(cafeLevel, 1, 10);
+
   // 基础间隔 30秒 (30000毫秒)
   const baseInterval = 30000;
   
   // 声望降低间隔 (声望100时减少50%)
-  const reputationModifier = 1 - (reputation / 100) * 0.5;
+  const reputationModifier = 1 - (normalizedReputation / 100) * 0.5;
   
   // 咖啡厅等级降低间隔 (等级10时减少30%)
-  const levelModifier = 1 - ((cafeLevel - 1) / 9) * 0.3;
+  const levelModifier = 1 - ((normalizedLevel - 1) / 9) * 0.3;
   
   // 最终间隔，最低10秒
   const interval = Math.max(baseInterval * reputationModifier * levelModifier, 10000);
@@ -444,13 +456,17 @@ export function calculateRewards(customer: Customer, maid: Maid): {
   reputation: number;
   maidExperience: number;
 } {
+  if (!customer || !maid) {
+    return { gold: 0, tip: 0, reputation: 0, maidExperience: 0 };
+  }
+
   const { satisfaction, order, type } = customer;
   
   // 基础金币 = 订单总价
   let gold = order.totalPrice;
   
   // 计算小费
-  const tip = calculateTip(satisfaction, maid.stats.charm);
+  const tip = calculateTip(satisfaction, clamp(maid.stats?.charm ?? 50, 1, 100));
   
   // 计算声望变化
   let reputation = 0;
@@ -464,7 +480,7 @@ export function calculateRewards(customer: Customer, maid: Maid): {
   
   // VIP顾客额外奖励
   if (type === 'vip' && satisfaction >= 70) {
-    gold = Math.round(gold * 1.2); // 20%额外消费
+    gold = Math.max(1, Math.round(gold * 1.2)); // 20%额外消费
   }
   
   // 计算女仆经验

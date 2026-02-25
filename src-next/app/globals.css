@@ -2267,10 +2267,10 @@ body {
 }
 
 .floating-window-layer {
-  position: absolute;
+  position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 26;
+  z-index: 46;
 }
 
 .floating-window {
@@ -2356,6 +2356,48 @@ body {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.floating-window-detail {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.floating-window-detail > * {
+  min-width: 0;
+}
+
+.floating-window-empty {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.floating-window-empty__icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.floating-window-empty__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #822659;
+}
+
+.floating-window-empty__desc {
+  font-size: 12px;
+  max-width: 280px;
 }
 
 .floating-window__resizer {
@@ -2380,7 +2422,7 @@ body {
   flex-wrap: wrap;
   gap: 8px;
   pointer-events: auto;
-  z-index: 40;
+  z-index: 47;
 }
 
 .floating-window-dock__item {

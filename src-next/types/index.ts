@@ -11,6 +11,15 @@ export type MaidRole = 'greeter' | 'server' | 'barista' | 'entertainer';
 
 export type MaidPersonality = 'cheerful' | 'cool' | 'shy' | 'energetic' | 'elegant';
 
+export type ShiftType = 'morning' | 'peak' | 'evening';
+export type MaidSkillKey = 'service' | 'guestCare' | 'emergency';
+
+export interface MaidSkills {
+  service: number;
+  guestCare: number;
+  emergency: number;
+}
+
 export interface MaidStatus {
   isWorking: boolean;
   isResting: boolean;  // 是否在休息
@@ -30,6 +39,11 @@ export interface Maid {
   status: MaidStatus;
   mood: number;     // 0-100
   stamina: number;  // 0-100
+  fatigue: number;  // 0-100
+  consecutiveWorkDays: number;
+  preferredShift: ShiftType;
+  skillPoints: number;
+  skills: MaidSkills;
   hireDate: number;
 }
 
@@ -147,6 +161,29 @@ export interface GameEvent {
   icon: string;
 }
 
+export interface IncidentOption {
+  id: string;
+  label: string;
+  description: string;
+  reputationDelta?: number;
+  goldDelta?: number;
+  moodDelta?: number;
+  fatigueDelta?: number;
+  spawnRateMultiplier?: number;
+  serviceEfficiencyMultiplier?: number;
+  satisfactionBonus?: number;
+  durationMinutes?: number;
+}
+
+export interface IncidentState {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  remainingMinutes: number;
+  options: IncidentOption[];
+}
+
 // ==================== 财务相关类型 ====================
 
 export interface DailyFinance {
@@ -187,10 +224,15 @@ export type TaskType = 'daily' | 'growth';
 
 export type TaskConditionType =
   | 'serve_customers'
+  | 'serve_vip'
   | 'earn_gold'
+  | 'earn_tips'
   | 'hire_maids'
   | 'unlock_menu_items'
-  | 'upgrade_cafe';
+  | 'upgrade_cafe'
+  | 'maintain_satisfaction'
+  | 'total_revenue'
+  | 'total_customers';
 
 export interface TaskCondition {
   type: TaskConditionType;
@@ -240,13 +282,137 @@ export interface Notification {
 // ==================== 游戏状态类型 ====================
 
 export type PanelType = 'cafe' | 'maids' | 'menu' | 'facility' | 'finance' | 'tasks' | 'achievements' | 'settings';
-export type FloatingWindowId = 'finance' | 'tasks' | 'achievements' | 'settings';
+export type FloatingWindowId =
+  | 'finance'
+  | 'tasks'
+  | 'achievements'
+  | 'settings'
+  | 'maidDetail'
+  | 'customerDetail';
 
 export type GameSpeed = 0.5 | 1 | 2 | 4;
 
 export interface GameRuntime {
   customerSpawnMs: number;
   customerStatusTicks: Record<string, number>;
+  customersServedToday?: number;
+  customerStreak?: number;
+  nativeStaffingPrimed?: boolean;
+  nativeStaffingFrame?: NativeStaffingFrame | null;
+}
+
+export interface StaffingShiftConfig {
+  rolePriority: MaidRole[];
+  allowCrossRole: boolean;
+}
+
+export interface StaffingAutoRestConfig {
+  enabled: boolean;
+  staminaThreshold: number;
+  moodThreshold: number;
+  fatigueThreshold: number;
+}
+
+export interface StaffingBoostState {
+  source: string;
+  remainingMinutes: number;
+  spawnRateMultiplier: number;
+  serviceEfficiencyMultiplier: number;
+  satisfactionBonus: number;
+}
+
+export interface StaffingState {
+  shifts: Record<ShiftType, StaffingShiftConfig>;
+  autoRest: StaffingAutoRestConfig;
+  activeBoost: StaffingBoostState | null;
+}
+
+export interface NativeMaidProfile {
+  baseServiceProgressDelta: number;
+  serviceProgressMultiplier: number;
+  satisfactionBonus: number;
+  serviceScore: number;
+  roleAllowed: boolean;
+}
+
+export interface NativeCustomerProfile {
+  nextPatience: number;
+  shouldLeave: boolean;
+  reputationPenalty: number;
+}
+
+export interface NativeServiceOutcomeProfile {
+  satisfaction: number;
+  gold: number;
+  tip: number;
+  reputation: number;
+  maidExperience: number;
+  comboMultiplier: number;
+}
+
+export interface NativeServiceProgressUpdate {
+  nextProgress: number;
+  completed: boolean;
+}
+
+export interface NativeServiceMetrics {
+  completedCount: number;
+  completedVipCount: number;
+  goldTotal: number;
+  tipTotal: number;
+  reputationTotal: number;
+  maxSatisfaction: number;
+}
+
+export interface NativeSpawnOrderItem {
+  menuItemId: string;
+  quantity: number;
+  prepared: boolean;
+}
+
+export interface NativeSpawnOrder {
+  items: NativeSpawnOrderItem[];
+  totalPrice: number;
+  preparedItems: string[];
+}
+
+export interface NativeSpawnCandidate {
+  id: string;
+  type: CustomerType;
+  name: string;
+  avatar: string;
+  patience: number;
+  satisfaction: number;
+  arrivalTime: number;
+  seatId?: string;
+  order: NativeSpawnOrder;
+}
+
+export interface NativeSpawnPlan {
+  spawnCount: number;
+  nextSpawnMs: number;
+}
+
+export interface NativeServiceAssignment {
+  maidId: string;
+  customerId: string;
+}
+
+export interface NativeStaffingFrame {
+  shift: ShiftType;
+  waitingCount: number;
+  spawnIntervalMs: number;
+  maidProfiles: Record<string, NativeMaidProfile>;
+  customerProfiles: Record<string, NativeCustomerProfile>;
+  serviceOutcomes: Record<string, NativeServiceOutcomeProfile>;
+  serviceProgressUpdates: Record<string, NativeServiceProgressUpdate>;
+  serviceMetrics: NativeServiceMetrics;
+  customerStatusTicks: Record<string, number>;
+  customerStatusUpdates: Record<string, CustomerStatus>;
+  removedCustomerIds: string[];
+  serviceAssignments: NativeServiceAssignment[];
+  spawnPlan: NativeSpawnPlan;
+  spawnCandidates: NativeSpawnCandidate[];
 }
 
 export interface FloatingWindowState {
@@ -290,6 +456,11 @@ export interface GameState {
   // 事件
   activeEvents: GameEvent[];
   eventHistory: GameEvent[];
+  activeIncident: IncidentState | null;
+  incidentHistory: IncidentState[];
+
+  // 调度
+  staffing: StaffingState;
   
   // 成就
   achievements: Achievement[];
@@ -310,6 +481,15 @@ export interface GameState {
   dailySummaryOpen: boolean;
 }
 
+export interface NativeStaffingPatch {
+  maids: Maid[];
+  staffing: StaffingState;
+  activeIncident: IncidentState | null;
+  incidentHistory: IncidentState[];
+  notifications: Notification[];
+  frame: NativeStaffingFrame;
+}
+
 
 // ==================== 游戏动作类型 ====================
 
@@ -327,6 +507,11 @@ export type GameAction =
   | { type: 'ASSIGN_ROLE'; maidId: string; role: MaidRole }
   | { type: 'UPDATE_MAID'; maidId: string; updates: Partial<Maid> }
   | { type: 'TOGGLE_MAID_REST'; maidId: string }  // 切换休息状态
+  | { type: 'SET_MAID_SHIFT'; maidId: string; shift: ShiftType }
+  | { type: 'SET_SHIFT_ROLE_PRIORITY'; shift: ShiftType; rolePriority: MaidRole[] }
+  | { type: 'TOGGLE_SHIFT_CROSS_ROLE'; shift: ShiftType }
+  | { type: 'UPDATE_AUTO_REST_CONFIG'; config: Partial<StaffingAutoRestConfig> }
+  | { type: 'ALLOCATE_MAID_SKILL_POINT'; maidId: string; skill: MaidSkillKey }
   
   // 顾客管理
   | { type: 'SPAWN_CUSTOMER'; customer: Customer }
@@ -355,6 +540,8 @@ export type GameAction =
   // 事件
   | { type: 'TRIGGER_EVENT'; event: GameEvent }
   | { type: 'END_EVENT'; eventId: string }
+  | { type: 'TRIGGER_OPERATION_INCIDENT'; incident: IncidentState }
+  | { type: 'RESOLVE_OPERATION_INCIDENT'; optionId: string }
   
   // 成就
   | { type: 'UNLOCK_ACHIEVEMENT'; achievementId: string }
@@ -377,6 +564,7 @@ export type GameAction =
   | { type: 'ADD_NOTIFICATION'; notification: Notification }
   | { type: 'REMOVE_NOTIFICATION'; notificationId: string }
   | { type: 'CLOSE_DAILY_SUMMARY' }
+  | { type: 'APPLY_NATIVE_STAFFING_PATCH'; patch: NativeStaffingPatch }
   
   // 存储
   | { type: 'LOAD_GAME'; state: GameState }

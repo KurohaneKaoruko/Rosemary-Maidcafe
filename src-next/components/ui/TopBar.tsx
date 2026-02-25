@@ -4,12 +4,17 @@ import React from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { formatGameTime, formatGold, formatDay, getSeasonIcon, formatSeason } from '@/utils/formatters';
 import { useDesktopFloatingMode } from '@/hooks/useDesktopFloatingMode';
+import { getServiceComboMultiplier, getServiceComboTier } from '@/systems/comboSystem';
 import { SpeedControl } from './SpeedControl';
 
 export function TopBar() {
   const { state, dispatch } = useGame();
-  const { day, time, season, isPaused, finance, reputation, gameSpeed } = state;
+  const { day, time, season, isPaused, finance, reputation, gameSpeed, runtime } = state;
   const desktopFloatingMode = useDesktopFloatingMode();
+  const customerStreak = runtime.customerStreak ?? 0;
+  const comboTier = getServiceComboTier(customerStreak);
+  const comboMultiplier = getServiceComboMultiplier(customerStreak);
+  const showCombo = customerStreak >= 3;
 
   const handleTogglePause = () => {
     dispatch({ type: 'TOGGLE_PAUSE' });
@@ -69,6 +74,16 @@ export function TopBar() {
             <span className="text-lg">⭐</span>
             <span className="font-semibold text-purple-700">{reputation}</span>
           </div>
+          {showCombo && (
+            <div className="flex items-center gap-1.5 bg-rose-50 px-3 py-1 rounded-lg border border-rose-100">
+              <span className="text-lg">🔥</span>
+              <span className="font-semibold text-rose-700">{customerStreak}连击</span>
+              <span className="text-xs font-semibold text-rose-500">
+                x{comboMultiplier.toFixed(2)}
+              </span>
+              <span className="text-xs text-rose-400">T{comboTier}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -107,10 +122,18 @@ export function TopBar() {
             <span className="font-semibold text-purple-700 text-sm">{reputation}</span>
           </div>
 
-          <div className="flex items-center gap-1 bg-gray-50 px-1.5 py-1 rounded-lg border border-gray-100 flex-1 justify-center">
-            <span className="text-sm">{getSeasonIcon(season)}</span>
-            <span className="text-gray-600 text-sm font-medium">D{day}</span>
-          </div>
+          {showCombo ? (
+            <div className="flex items-center gap-1 bg-rose-50 px-1.5 py-1 rounded-lg border border-rose-100 flex-1 justify-center">
+              <span className="text-sm">🔥</span>
+              <span className="text-rose-700 text-sm font-semibold">{customerStreak}</span>
+              <span className="text-rose-500 text-xs">x{comboMultiplier.toFixed(2)}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 bg-gray-50 px-1.5 py-1 rounded-lg border border-gray-100 flex-1 justify-center">
+              <span className="text-sm">{getSeasonIcon(season)}</span>
+              <span className="text-gray-600 text-sm font-medium">D{day}</span>
+            </div>
+          )}
 
           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
             {[

@@ -39,7 +39,7 @@ python scripts/generate-tauri-icons.py
 npm run dev
 ```
 
-执行后会先启动 Next 开发服务（默认 `http://localhost:3000`），再启动 Tauri 桌面应用。
+执行后会先启动 Next 开发服务（默认 `http://localhost:3527`），再启动 Tauri 桌面应用。
 
 ## 构建前端静态资源
 

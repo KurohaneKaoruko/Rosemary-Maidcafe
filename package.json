@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "gen:maid-manifest": "node scripts/generate-maid-image-manifest.mjs",
-    "next:dev": "npm run gen:maid-manifest && next dev src-next --port 3000",
+    "next:dev": "npm run gen:maid-manifest && next dev src-next --port 3527",
     "next:build": "npm run gen:maid-manifest && next build src-next",
     "dev": "tauri dev",
     "build:desktop": "tauri build",

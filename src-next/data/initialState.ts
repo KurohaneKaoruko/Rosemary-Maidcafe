@@ -5,6 +5,7 @@ import { defaultDecorations } from './decorations';
 import { defaultEquipment } from './equipment';
 import { defaultTasks } from './tasks';
 import { createInitialDesktopUIState } from './desktopUI';
+import { DEFAULT_STAFFING_STATE } from './staffing';
 
 export const initialGameState: GameState = {
   // 时间设置
@@ -18,6 +19,10 @@ export const initialGameState: GameState = {
   runtime: {
     customerSpawnMs: 0,
     customerStatusTicks: {},
+    customersServedToday: 0,
+    customerStreak: 0,
+    nativeStaffingPrimed: false,
+    nativeStaffingFrame: null,
   },
   
   // 核心数据 - 初始为空或默认值
@@ -45,6 +50,11 @@ export const initialGameState: GameState = {
   // 事件
   activeEvents: [],
   eventHistory: [],
+  activeIncident: null,
+  incidentHistory: [],
+
+  // 调度
+  staffing: DEFAULT_STAFFING_STATE,
   
   // 成就
   achievements: defaultAchievements,
@@ -102,5 +112,6 @@ export const GAME_CONSTANTS = {
   
   // 存储
   SAVE_KEY: 'rosemary-maid-cafe-save',
-  SAVE_VERSION: '1.0.0',
+  SAVE_VERSION: '3.0.0',
+  MIN_SUPPORTED_VERSION: '0.1.0',
 };

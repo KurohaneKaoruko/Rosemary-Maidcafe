@@ -2,7 +2,7 @@
 
 import React, { useCallback, useMemo } from 'react';
 import { useGame } from '@/components/game/GameProvider';
-import { FLOATING_WINDOW_IDS, FLOATING_WINDOW_TITLES } from '@/data/desktopUI';
+import { DESKTOP_TOOLBAR_WINDOW_IDS, FLOATING_WINDOW_TITLES } from '@/data/desktopUI';
 import { FloatingWindowId } from '@/types';
 
 interface DesktopWindowToolbarProps {
@@ -31,7 +31,7 @@ export function DesktopWindowToolbar({ enabled }: DesktopWindowToolbarProps) {
 
   const windowItems = useMemo(
     () =>
-      FLOATING_WINDOW_IDS.map((windowId) => ({
+      DESKTOP_TOOLBAR_WINDOW_IDS.map((windowId) => ({
         windowId,
         title: FLOATING_WINDOW_TITLES[windowId],
         icon: getWindowIcon(windowId),

@@ -1,4 +1,4 @@
-import { Maid, MaidStats, MaidPersonality, MaidRole } from '@/types';
+import { Maid, MaidSkills, MaidStats, MaidPersonality, MaidRole, ShiftType } from '@/types';
 import {
   maidFirstNames,
   maidLastNames,
@@ -32,6 +32,32 @@ function randomInt(min: number, max: number): number {
  */
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+export function createDefaultMaidSkills(): MaidSkills {
+  return {
+    service: 0,
+    guestCare: 0,
+    emergency: 0,
+  };
+}
+
+export function normalizeMaidState(maid: Maid): Maid {
+  const preferredShift = (['morning', 'peak', 'evening'] as ShiftType[]).includes(maid.preferredShift)
+    ? maid.preferredShift
+    : 'peak';
+  return {
+    ...maid,
+    fatigue: Number.isFinite(maid.fatigue) ? clamp(maid.fatigue, 0, 100) : 0,
+    consecutiveWorkDays: Number.isFinite(maid.consecutiveWorkDays) ? Math.max(0, maid.consecutiveWorkDays) : 0,
+    preferredShift,
+    skillPoints: Number.isFinite(maid.skillPoints) ? Math.max(0, maid.skillPoints) : 0,
+    skills: {
+      service: Number.isFinite(maid.skills?.service) ? clamp(maid.skills.service, 0, 10) : 0,
+      guestCare: Number.isFinite(maid.skills?.guestCare) ? clamp(maid.skills.guestCare, 0, 10) : 0,
+      emergency: Number.isFinite(maid.skills?.emergency) ? clamp(maid.skills.emergency, 0, 10) : 0,
+    },
+  };
 }
 
 /**
@@ -73,6 +99,11 @@ export function generateRandomMaid(usedImages: string[] = []): Maid {
     },
     mood: randomInt(70, 100),
     stamina: 100, // 新雇佣的女仆体力满
+    fatigue: 0,
+    consecutiveWorkDays: 0,
+    preferredShift: 'peak',
+    skillPoints: 0,
+    skills: createDefaultMaidSkills(),
     hireDate: Date.now(),
   };
 
@@ -86,14 +117,34 @@ export function generateRandomMaid(usedImages: string[] = []): Maid {
  * Requirements: 2.4
  */
 export function calculateEfficiency(maid: Maid): number {
+  if (
+    !maid ||
+    typeof maid.stats?.charm !== 'number' ||
+    typeof maid.stats?.skill !== 'number' ||
+    typeof maid.stats?.speed !== 'number' ||
+    typeof maid.mood !== 'number' ||
+    typeof maid.stamina !== 'number'
+  ) {
+    return 0;
+  }
+
+  const charm = clamp(maid.stats.charm, 0, 100);
+  const skill = clamp(maid.stats.skill, 0, 100);
+  const speed = clamp(maid.stats.speed, 0, 100);
+  const mood = clamp(maid.mood, 0, 100);
+  const fatigue = clamp(maid.fatigue ?? 0, 0, 100);
+
   // 基础效率 = (魅力 + 技能 + 速度) / 3
-  const baseEfficiency = (maid.stats.charm + maid.stats.skill + maid.stats.speed) / 3;
+  const baseEfficiency = (charm + skill + speed) / 3;
   
   // 心情影响效率 (心情100时为1.0，心情0时为0.5)
-  const moodModifier = 0.5 + (maid.mood / 200);
+  const moodModifier = 0.5 + (mood / 200);
   
   // 计算效率
   let efficiency = baseEfficiency * moodModifier;
+  const skillBonus = 1 + clamp((maid.skills?.service ?? 0) * 0.03, 0, 0.3);
+  const fatiguePenalty = 1 - (fatigue / 180);
+  efficiency = efficiency * skillBonus * fatiguePenalty;
   
   // 体力低于20%时效率减半 (Requirements: 2.4)
   if (maid.stamina < 20) {
@@ -140,6 +191,7 @@ export function checkLevelUp(maid: Maid): Maid {
     // 扣除升级所需经验
     updatedMaid.experience -= getExperienceForLevel(updatedMaid.level);
     updatedMaid.level += 1;
+    updatedMaid.skillPoints += 1;
     
     // 升级时提升属性 (每项+2，但不超过100)
     updatedMaid.stats = {
@@ -159,6 +211,10 @@ export function checkLevelUp(maid: Maid): Maid {
  * Requirements: 2.8
  */
 export function updateMaidStamina(maid: Maid, deltaMinutes: number): Maid {
+  if (!maid || typeof maid.stamina !== 'number' || !maid.status) {
+    return maid;
+  }
+
   let newStamina = maid.stamina;
   
   if (maid.status.isResting) {
@@ -217,10 +273,23 @@ export function assignRole(maid: Maid, role: MaidRole): Maid {
 /**
  * 更新女仆心情
  */
-export function updateMaidMood(maid: Maid, delta: number): Maid {
+export function updateMaidMood(maid: Maid, deltaMinutes: number): Maid {
+  if (!maid || typeof maid.mood !== 'number' || !maid.status) {
+    return maid;
+  }
+
+  let newMood = maid.mood;
+  if (maid.status.isResting) {
+    newMood = maid.mood + (deltaMinutes * 1);
+  } else if (maid.status.isWorking) {
+    newMood = maid.mood - (deltaMinutes * 0.2);
+  } else {
+    newMood = maid.mood + (deltaMinutes * 0.5);
+  }
+
   return {
     ...maid,
-    mood: clamp(maid.mood + delta, 0, 100),
+    mood: clamp(newMood, 0, 100),
   };
 }
 

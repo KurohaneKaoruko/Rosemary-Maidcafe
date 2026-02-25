@@ -6,7 +6,7 @@ import { useAudio } from '@/components/game/AudioProvider';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { deleteSave, exportSave, downloadSave } from '@/utils/storage';
+import { deleteSave, saveGame } from '@/utils/storage';
 import { DisplayMode, useDisplaySettings } from '@/hooks/useDisplaySettings';
 
 export function SettingsPanel() {
@@ -25,6 +25,7 @@ export function SettingsPanel() {
   const [deleteStep, setDeleteStep] = useState(0);
   const [pendingMode, setPendingMode] = useState<DisplayMode>(mode);
   const [pendingResolutionId, setPendingResolutionId] = useState<string>(resolutionId);
+  const [isSaveBusy, setIsSaveBusy] = useState(false);
 
   useEffect(() => {
     setPendingMode(mode);
@@ -32,31 +33,31 @@ export function SettingsPanel() {
   }, [mode, resolutionId]);
 
   // 导出存档
-  const handleExportSave = () => {
-    const result = exportSave(state);
-    if (result.success && result.data) {
-      downloadSave(result.data);
-      dispatch({
-        type: 'ADD_NOTIFICATION',
-        notification: {
-          id: `notif_${Date.now()}`,
-          type: 'success',
-          message: '存档已导出',
-          timestamp: Date.now(),
-        },
-      });
-    }
+  const handleManualSave = async () => {
+    setIsSaveBusy(true);
+    const result = await saveGame(state);
+    setIsSaveBusy(false);
+
+    dispatch({
+      type: 'ADD_NOTIFICATION',
+      notification: {
+        id: `notif_${Date.now()}`,
+        type: result.success ? 'success' : 'warning',
+        message: result.success ? '存档已保存' : (result.error || '保存失败'),
+        timestamp: Date.now(),
+      },
+    });
   };
 
   // 删除存档
-  const handleDeleteSave = () => {
+  const handleDeleteSave = async () => {
     if (deleteStep < 2) {
       setDeleteStep(deleteStep + 1);
       return;
     }
 
     // 执行删除
-    deleteSave();
+    await deleteSave();
     
     // 重置游戏状态
     dispatch({ type: 'RESET_GAME' });
@@ -146,12 +147,8 @@ export function SettingsPanel() {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400">
-                  全屏模式下分辨率用于返回窗口模式时生效。
-                </p>
-                <p className="text-xs text-gray-400">
-                  如果目标分辨率超过当前屏幕可用范围，会自动缩放到可见尺寸。
-                </p>
+                <p className="text-xs text-gray-400">全屏模式下分辨率用于返回窗口模式时生效。</p>
+                <p className="text-xs text-gray-400">如果目标分辨率超过当前屏幕可用范围，会自动缩放到可见尺寸。</p>
               </div>
 
               {lastError && (
@@ -313,11 +310,12 @@ export function SettingsPanel() {
         <CardBody>
           <div className="space-y-3">
             <Button
-              variant="secondary"
-              onClick={handleExportSave}
+              variant="primary"
+              onClick={() => void handleManualSave()}
+              disabled={isSaveBusy}
               className="w-full"
             >
-              📤 导出存档
+              {isSaveBusy ? '保存中...' : '💾 立即保存'}
             </Button>
             
             <Button
@@ -338,7 +336,7 @@ export function SettingsPanel() {
           <div className="text-sm text-gray-600 space-y-2">
             <p>🌿 迷迭香咖啡厅 v0.1.0</p>
             <p>一款二次元风格的女仆咖啡厅经营模拟游戏</p>
-            <p className="text-xs text-gray-400">游戏数据自动保存到浏览器本地存储</p>
+            <p className="text-xs text-gray-400">游戏数据本机加密存储，已禁用导入导出</p>
           </div>
         </CardBody>
       </Card>
@@ -393,7 +391,7 @@ export function SettingsPanel() {
             </Button>
             <Button
               variant="danger"
-              onClick={handleDeleteSave}
+              onClick={() => void handleDeleteSave()}
               className="flex-1"
             >
               {deleteStep === 0 && '继续'}

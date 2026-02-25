@@ -2,6 +2,7 @@
 
 import { useGame } from '@/components/game/GameProvider';
 import { useLandscapeMode } from '@/hooks/useLandscapeMode';
+import { useDesktopFloatingMode } from '@/hooks/useDesktopFloatingMode';
 import { SeatGrid } from './Seat';
 import { MaidCard } from './MaidCard';
 import { MaidDetailPanel } from './MaidDetailPanel';
@@ -10,10 +11,12 @@ import { CustomerDetailPanel } from './CustomerDetailPanel';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { CollapsibleCard } from '@/components/ui/CollapsibleCard';
 import { MaidRole } from '@/types';
+import { getServiceComboMultiplier } from '@/systems/comboSystem';
 
 export function CafeView() {
   const { state, dispatch } = useGame();
   const isLandscape = useLandscapeMode();
+  const desktopFloatingMode = useDesktopFloatingMode();
   const { 
     customers, 
     maids, 
@@ -26,18 +29,36 @@ export function CafeView() {
 
   // Handle customer selection
   const handleCustomerClick = (customerId: string) => {
+    const nextCustomerId = selectedCustomerId === customerId ? null : customerId;
     dispatch({
       type: 'SELECT_CUSTOMER',
-      customerId: selectedCustomerId === customerId ? null : customerId,
+      customerId: nextCustomerId,
     });
+
+    if (desktopFloatingMode) {
+      if (nextCustomerId) {
+        dispatch({ type: 'OPEN_FLOATING_WINDOW', windowId: 'customerDetail' });
+      } else {
+        dispatch({ type: 'CLOSE_FLOATING_WINDOW', windowId: 'customerDetail' });
+      }
+    }
   };
 
   // Handle maid selection
   const handleMaidClick = (maidId: string) => {
+    const nextMaidId = selectedMaidId === maidId ? null : maidId;
     dispatch({
       type: 'SELECT_MAID',
-      maidId: selectedMaidId === maidId ? null : maidId,
+      maidId: nextMaidId,
     });
+
+    if (desktopFloatingMode) {
+      if (nextMaidId) {
+        dispatch({ type: 'OPEN_FLOATING_WINDOW', windowId: 'maidDetail' });
+      } else {
+        dispatch({ type: 'CLOSE_FLOATING_WINDOW', windowId: 'maidDetail' });
+      }
+    }
   };
 
   // Handle maid role change
@@ -71,6 +92,7 @@ export function CafeView() {
   const selectedMaid = selectedMaidId 
     ? maids.find(m => m.id === selectedMaidId) 
     : null;
+  const serviceComboMultiplier = getServiceComboMultiplier(state.runtime.customerStreak ?? 0);
 
   return (
     <div className={`flex flex-col gap-4 p-4 min-h-full ${isLandscape ? 'p-2 gap-2' : ''}`}>
@@ -159,6 +181,7 @@ export function CafeView() {
                         <CustomerCard
                           key={customer.id}
                           customer={customer}
+                          comboMultiplier={serviceComboMultiplier}
                           onClick={() => handleCustomerClick(customer.id)}
                           selected={selectedCustomerId === customer.id}
                           compact
@@ -185,6 +208,7 @@ export function CafeView() {
                           <CustomerCard
                             key={customer.id}
                             customer={customer}
+                            comboMultiplier={serviceComboMultiplier}
                             onClick={() => handleCustomerClick(customer.id)}
                             selected={selectedCustomerId === customer.id}
                             compact
@@ -211,6 +235,7 @@ export function CafeView() {
                             <CustomerCard
                               key={customer.id}
                               customer={customer}
+                              comboMultiplier={serviceComboMultiplier}
                               onClick={() => handleCustomerClick(customer.id)}
                               selected={selectedCustomerId === customer.id}
                               compact
@@ -420,7 +445,7 @@ export function CafeView() {
       </div>
 
       {/* Selected Details Panel - Shows at bottom on all screen sizes, hidden in landscape to save space */}
-      {(selectedCustomer || selectedMaid) && !isLandscape && (
+      {(selectedCustomer || selectedMaid) && !isLandscape && !desktopFloatingMode && (
         <div className="border-t border-gray-100 pt-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Selected Customer Details */}
@@ -444,7 +469,11 @@ export function CafeView() {
                 </CardHeader>
                 <CardBody>
                   <div className="space-y-3">
-                    <CustomerCard customer={selectedCustomer} selected />
+                    <CustomerCard
+                      customer={selectedCustomer}
+                      selected
+                      comboMultiplier={serviceComboMultiplier}
+                    />
                     <CustomerDetailPanel customer={selectedCustomer} />
                   </div>
                 </CardBody>

@@ -1,12 +1,17 @@
-import { Task, TaskReward } from '@/types';
+import { Task, TaskConditionType, TaskReward } from '@/types';
 import { createInitialTasks } from '@/data/tasks';
 
 export type TaskEvent =
   | { type: 'serve_customers'; amount: number }
+  | { type: 'serve_vip'; amount: number }
   | { type: 'earn_gold'; amount: number }
+  | { type: 'earn_tips'; amount: number }
   | { type: 'hire_maids'; amount: number }
   | { type: 'unlock_menu_items'; amount: number }
-  | { type: 'upgrade_cafe'; level: number };
+  | { type: 'upgrade_cafe'; level: number }
+  | { type: 'maintain_satisfaction'; value: number }
+  | { type: 'total_revenue'; amount: number }
+  | { type: 'total_customers'; amount: number };
 
 export function refreshDailyTasks(existing: Task[], day: number): Task[] {
   const growthTasks = existing.filter(t => t.type === 'growth');
@@ -20,15 +25,24 @@ export function applyTaskEvent(tasks: Task[], event: TaskEvent): Task[] {
       return task;
     }
 
-    if (task.condition.type !== event.type && !(task.condition.type === 'upgrade_cafe' && event.type === 'upgrade_cafe')) {
+    if (!checkEventMatch(task.condition.type, event.type)) {
       return task;
     }
 
     let nextProgress = task.progress;
-    if (event.type === 'upgrade_cafe') {
-      nextProgress = Math.max(nextProgress, event.level);
-    } else {
-      nextProgress = task.progress + event.amount;
+    switch (event.type) {
+      case 'upgrade_cafe':
+        nextProgress = Math.max(nextProgress, event.level);
+        break;
+      case 'maintain_satisfaction':
+        nextProgress = Math.max(nextProgress, event.value);
+        break;
+      case 'total_revenue':
+      case 'total_customers':
+        nextProgress = Math.max(nextProgress, event.amount);
+        break;
+      default:
+        nextProgress = task.progress + event.amount;
     }
 
     const clamped = Math.min(nextProgress, task.condition.target);
@@ -39,6 +53,23 @@ export function applyTaskEvent(tasks: Task[], event: TaskEvent): Task[] {
       completed,
     };
   });
+}
+
+function checkEventMatch(
+  conditionType: TaskConditionType,
+  eventType: TaskEvent['type'],
+): boolean {
+  if (conditionType === eventType) {
+    return true;
+  }
+
+  // Compatibility mappings for cumulative goals fed by incremental events.
+  const mappings: Partial<Record<TaskConditionType, TaskEvent['type'][]>> = {
+    total_revenue: ['earn_gold'],
+    total_customers: ['serve_customers'],
+  };
+
+  return mappings[conditionType]?.includes(eventType) ?? false;
 }
 
 export function claimTaskReward(tasks: Task[], taskId: string): { tasks: Task[]; reward: TaskReward | null } {

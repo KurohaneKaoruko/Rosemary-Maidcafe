@@ -24,7 +24,7 @@ import { DailySummaryModal } from '@/components/modals/DailySummaryModal';
 import { SaveLoadModal } from '@/components/modals/SaveLoadModal';
 import { useDesktopFloatingMode } from '@/hooks/useDesktopFloatingMode';
 import { isFloatingWindowPanel } from '@/data/desktopUI';
-import { GameEvent, Maid, GameState } from '@/types';
+import { GameEvent, Maid } from '@/types';
 import { hireCostByLevel } from '@/data/maidNames';
 
 /**
@@ -69,11 +69,6 @@ export function GameUI() {
     }
     setShowHireMaidModal(false);
   }, [dispatch, state.finance.gold]);
-
-  // Handle load game
-  const handleLoadGame = useCallback((loadedState: GameState) => {
-    dispatch({ type: 'LOAD_GAME', state: loadedState });
-  }, [dispatch]);
 
   // Handle new game
   const handleNewGame = useCallback(() => {
@@ -131,11 +126,11 @@ export function GameUI() {
       {!desktopFloatingMode && <Navigation />}
       
       {/* Main Content Area with Side Navigation for Landscape - Requirements: 8.3, 9.1 */}
-      <div className={`flex-1 flex overflow-hidden ${desktopFloatingMode ? 'desktop-workbench' : ''}`}>
+      <div className={`flex-1 flex ${desktopFloatingMode ? 'desktop-workbench overflow-visible' : 'overflow-hidden'}`}>
         {desktopFloatingMode ? (
           <>
             <DesktopDock />
-            <main className="relative flex-1 overflow-hidden">
+            <main className="relative flex-1 overflow-visible">
               <DesktopWindowToolbar enabled={desktopFloatingMode} />
               <div className="desktop-stage-shell">{renderActivePanel()}</div>
               <FloatingWindowsLayer enabled={desktopFloatingMode} />
@@ -188,6 +183,7 @@ export function GameUI() {
         day={state.day}
         finance={state.finance}
         maids={state.maids}
+        facility={state.facility}
         customersServedToday={customersServedToday}
         statistics={state.statistics}
       />
@@ -196,7 +192,6 @@ export function GameUI() {
         isOpen={showSaveLoadModal}
         onClose={() => setShowSaveLoadModal(false)}
         gameState={state}
-        onLoadGame={handleLoadGame}
         onNewGame={handleNewGame}
       />
     </div>
