@@ -49,9 +49,9 @@ export function MaidDetailPanel({ maid, onRoleChange, onToggleRest }: MaidDetail
   const availableRoles: MaidRole[] = ['server', 'greeter', 'barista', 'entertainer'];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 min-w-0">
       {/* Header: Avatar + Info */}
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         <div className="relative flex-shrink-0">
           <MaidAvatar src={maid.avatar} name={maid.name} size="lg" />
           <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm border border-gray-100">
@@ -61,7 +61,7 @@ export function MaidDetailPanel({ maid, onRoleChange, onToggleRest }: MaidDetail
         
         <div className="flex-1 min-w-0">
           {/* Name Row */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="font-bold text-gray-800 text-lg">{maid.name}</span>
             <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded">
               Lv.{maid.level}
@@ -69,11 +69,10 @@ export function MaidDetailPanel({ maid, onRoleChange, onToggleRest }: MaidDetail
           </div>
           
           {/* Status Row */}
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex flex-wrap items-center gap-2 mt-1">
             <span className="text-sm text-gray-500">
               {personalityLabels[maid.personality]}性格
             </span>
-            <span className="text-gray-300">·</span>
             <span className={`text-sm ${isResting ? 'text-gray-400' : 'text-pink-500'}`}>
               {isResting ? '💤 休息中' : `${roleIcons[maid.role]} ${roleLabels[maid.role]}`}
             </span>
@@ -103,7 +102,7 @@ export function MaidDetailPanel({ maid, onRoleChange, onToggleRest }: MaidDetail
       </div>
 
       {/* Stats: Compact 2-row grid */}
-      <div className="grid grid-cols-6 gap-1.5">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(64px,1fr))] gap-1.5">
         <StatBadge icon="💕" label="魅力" value={maid.stats.charm} />
         <StatBadge icon="⭐" label="技能" value={maid.stats.skill} />
         <StatBadge icon="💪" label="体质" value={maid.stats.stamina} />
@@ -131,14 +130,14 @@ export function MaidDetailPanel({ maid, onRoleChange, onToggleRest }: MaidDetail
             <span className="text-xs text-amber-500">⚠️ 工作中</span>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(86px,1fr))] gap-2">
           {availableRoles.map(role => (
             <button
               key={role}
               onClick={() => onRoleChange(maid.id, role)}
               disabled={isWorking || isResting}
               className={`
-                flex-1 py-2 rounded-lg transition-all text-center
+                py-2 rounded-lg transition-all text-center
                 ${maid.role === role && !isResting
                   ? 'bg-pink-500 text-white shadow-sm' 
                   : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-100'
@@ -188,15 +187,15 @@ function ProgressRow({
   showValue?: string;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className={`text-xs w-8 ${warning ? 'text-red-500' : 'text-gray-400'}`}>{label}</span>
-      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+    <div className="flex min-w-0 items-center gap-2">
+      <span className={`w-9 shrink-0 text-xs ${warning ? 'text-red-500' : 'text-gray-400'}`}>{label}</span>
+      <div className="min-w-0 flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
         <div 
           className={`h-full rounded-full ${color}`}
           style={{ width: `${Math.min(100, value)}%` }}
         />
       </div>
-      <span className={`text-xs w-10 text-right ${warning ? 'text-red-500' : 'text-gray-400'}`}>
+      <span className={`w-14 shrink-0 truncate text-right text-xs ${warning ? 'text-red-500' : 'text-gray-400'}`}>
         {showValue || `${Math.round(value)}%`}
       </span>
     </div>

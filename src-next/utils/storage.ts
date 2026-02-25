@@ -1,9 +1,46 @@
-import { DesktopUIState, FloatingWindowId, GameState, Maid } from '@/types';
+import {
+  Area,
+  DesktopUIState,
+  FloatingWindowId,
+  GameSpeed,
+  GameState,
+  GameStatistics,
+  Maid,
+  StaffingState,
+} from '@/types';
 import { initialGameState, GAME_CONSTANTS } from '@/data/initialState';
-import { getRandomMaidImage, maidImagePool, normalizeMaidAvatarPath } from '@/data/maidImages';
+import { defaultAchievements } from '@/data/achievements';
+import { defaultDecorations } from '@/data/decorations';
 import { createInitialDesktopUIState, FLOATING_WINDOW_IDS } from '@/data/desktopUI';
+import { defaultEquipment } from '@/data/equipment';
+import { getRandomMaidImage, maidImagePool, normalizeMaidAvatarPath } from '@/data/maidImages';
+import { defaultMenuItems } from '@/data/menuItems';
+import { createInitialTasks } from '@/data/tasks';
+import { DEFAULT_STAFFING_STATE } from '@/data/staffing';
+import { isTauriDesktop } from '@/utils/platform';
+import { createDefaultMaidSkills, normalizeMaidState } from '@/systems/maidSystem';
+import { normalizeStaffingState } from '@/systems/staffingSystem';
 
-// 存储数据结构
+const COMPACT_SCHEMA_VERSION = 2;
+const LOCAL_COMPACT_SAVE_KEY = `${GAME_CONSTANTS.SAVE_KEY}-compact-v2`;
+
+const RUNTIME_DEFAULTS = {
+  customerSpawnMs: 0,
+  customerStatusTicks: {},
+  customersServedToday: 0,
+  customerStreak: 0,
+  nativeStaffingPrimed: false,
+  nativeStaffingFrame: null,
+};
+
+const KNOWN_AREAS: ReadonlySet<Area> = new Set<Area>(['main', 'outdoor', 'vip_room', 'stage']);
+const maidImagePoolSet = new Set(maidImagePool);
+
+type TauriInvoke = <T = unknown>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
+
+let invokeLoader: Promise<TauriInvoke | null> | null = null;
+
+// Legacy storage structure kept for compatibility with old localStorage saves.
 export interface SaveData {
   version: string;
   timestamp: number;
@@ -11,25 +48,167 @@ export interface SaveData {
   checksum: string;
 }
 
-// 存储结果类型
+interface CompactMaid {
+  id: string;
+  name: string;
+  avatarId: string;
+  personality: Maid['personality'];
+  stats: Maid['stats'];
+  experience: number;
+  level: number;
+  role: Maid['role'];
+  status: Maid['status'];
+  mood: number;
+  stamina: number;
+  fatigue: number;
+  consecutiveWorkDays: number;
+  preferredShift: Maid['preferredShift'];
+  skillPoints: number;
+  skills: Maid['skills'];
+  hireDate: number;
+}
+
+interface CompactMenuItemState {
+  id: string;
+  currentPrice: number;
+  unlocked: boolean;
+  popularity: number;
+}
+
+interface CompactFacilityState {
+  cafeLevel: number;
+  maxSeats: number;
+  decorationIds: string[];
+  equipmentLevels: Record<string, number>;
+  unlockedAreas: Area[];
+}
+
+interface CompactTaskState {
+  id: string;
+  progress: number;
+  completed: boolean;
+  claimed: boolean;
+  dayAssigned: number;
+}
+
+interface CompactAchievementState {
+  id: string;
+  unlocked: boolean;
+  unlockedDate: number | null;
+}
+
+interface CompactSaveData {
+  schema: number;
+  version: string;
+  timestamp: number;
+  day: number;
+  time: number;
+  season: GameState['season'];
+  isPaused: boolean;
+  isBusinessHours: boolean;
+  gameSpeed: GameSpeed;
+  maids: CompactMaid[];
+  menuItems: CompactMenuItemState[];
+  facility: CompactFacilityState;
+  finance: GameState['finance'];
+  tasks: CompactTaskState[];
+  achievements: CompactAchievementState[];
+  statistics: GameState['statistics'];
+  reputation: number;
+  staffing: StaffingState;
+}
+
+interface SaveInfoData {
+  version: string;
+  timestamp: number;
+  day: number;
+}
+
+// Storage result type
 export interface StorageResult<T> {
   success: boolean;
   data?: T;
   error?: string;
 }
 
-function prepareStateForSave(state: GameState): GameState {
-  return {
-    ...state,
-    runtime: {
-      customerSpawnMs: 0,
-      customerStatusTicks: {},
-    },
-    notifications: [],
-    selectedMaidId: null,
-    selectedCustomerId: null,
-    dailySummaryOpen: false,
-  };
+interface LocalLoadResult {
+  type: 'compact' | 'legacy';
+  state: GameState;
+}
+
+export function compareVersion(v1: string, v2: string): number {
+  const parts1 = v1.split('.').map(Number);
+  const parts2 = v2.split('.').map(Number);
+
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i += 1) {
+    const p1 = parts1[i] ?? 0;
+    const p2 = parts2[i] ?? 0;
+    if (p1 < p2) return -1;
+    if (p1 > p2) return 1;
+  }
+
+  return 0;
+}
+
+export function isVersionCompatible(version: string): boolean {
+  const currentVersion = GAME_CONSTANTS.SAVE_VERSION;
+  const minVersion = GAME_CONSTANTS.MIN_SUPPORTED_VERSION ?? '0.1.0';
+
+  if (compareVersion(version, currentVersion) >= 0) {
+    return true;
+  }
+
+  return compareVersion(version, minVersion) >= 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function getNumber(value: unknown, fallback: number, minimum?: number, maximum?: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  let number = Number(value);
+
+  if (minimum !== undefined) {
+    number = Math.max(minimum, number);
+  }
+
+  if (maximum !== undefined) {
+    number = Math.min(maximum, number);
+  }
+
+  return number;
+}
+
+function normalizeBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return fallback;
+}
+
+function isSeason(value: unknown): value is GameState['season'] {
+  return value === 'spring' || value === 'summer' || value === 'autumn' || value === 'winter';
+}
+
+function isGameSpeed(value: unknown): value is GameSpeed {
+  return value === 0.5 || value === 1 || value === 2 || value === 4;
+}
+
+function avatarPathToId(avatar: string): string {
+  const normalized = normalizeMaidAvatarPath(avatar);
+  const source = normalized || avatar.trim().toLowerCase();
+  const fileName = source.split('/').pop() ?? '';
+  return fileName.replace(/\.[^.]+$/, '').trim().toLowerCase();
+}
+
+function avatarIdToPath(avatarId: string): string {
+  const normalized = avatarId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  return normalized ? `/maid-image/${normalized}.jpg` : '';
 }
 
 function isFloatingWindowId(value: unknown): value is FloatingWindowId {
@@ -54,6 +233,19 @@ function normalizeDesktopUI(state: Partial<GameState>): DesktopUIState {
       continue;
     }
 
+    const loadedMinWidth = Number.isFinite(loadedWindow.minWidth)
+      ? Math.max(loadedWindow.minWidth, defaultWindow.minWidth)
+      : defaultWindow.minWidth;
+    const loadedMinHeight = Number.isFinite(loadedWindow.minHeight)
+      ? Math.max(loadedWindow.minHeight, defaultWindow.minHeight)
+      : defaultWindow.minHeight;
+    const loadedWidth = Number.isFinite(loadedWindow.width)
+      ? Math.max(loadedWindow.width, loadedMinWidth)
+      : Math.max(defaultWindow.width, loadedMinWidth);
+    const loadedHeight = Number.isFinite(loadedWindow.height)
+      ? Math.max(loadedWindow.height, loadedMinHeight)
+      : Math.max(defaultWindow.height, loadedMinHeight);
+
     normalizedWindows[windowId] = {
       ...defaultWindow,
       id: windowId,
@@ -62,10 +254,10 @@ function normalizeDesktopUI(state: Partial<GameState>): DesktopUIState {
       minimized: Boolean(loadedWindow.minimized),
       x: Number.isFinite(loadedWindow.x) ? loadedWindow.x : defaultWindow.x,
       y: Number.isFinite(loadedWindow.y) ? loadedWindow.y : defaultWindow.y,
-      width: Number.isFinite(loadedWindow.width) ? loadedWindow.width : defaultWindow.width,
-      height: Number.isFinite(loadedWindow.height) ? loadedWindow.height : defaultWindow.height,
-      minWidth: Number.isFinite(loadedWindow.minWidth) ? loadedWindow.minWidth : defaultWindow.minWidth,
-      minHeight: Number.isFinite(loadedWindow.minHeight) ? loadedWindow.minHeight : defaultWindow.minHeight,
+      width: loadedWidth,
+      height: loadedHeight,
+      minWidth: loadedMinWidth,
+      minHeight: loadedMinHeight,
       zIndex: Number.isFinite(loadedWindow.zIndex) ? loadedWindow.zIndex : defaultWindow.zIndex,
     };
   }
@@ -94,50 +286,439 @@ function normalizeDesktopUI(state: Partial<GameState>): DesktopUIState {
 }
 
 function normalizeLoadedState(state: GameState): GameState {
+  const normalizedStaffing = normalizeStaffingState(state.staffing ?? DEFAULT_STAFFING_STATE);
+
   return {
     ...state,
-    runtime: state.runtime ?? { customerSpawnMs: 0, customerStatusTicks: {} },
+    runtime: state.runtime
+      ? {
+          customerSpawnMs: state.runtime.customerSpawnMs ?? 0,
+          customerStatusTicks: state.runtime.customerStatusTicks ?? {},
+          customersServedToday: state.runtime.customersServedToday ?? 0,
+          customerStreak: state.runtime.customerStreak ?? 0,
+          nativeStaffingPrimed: false,
+          nativeStaffingFrame: null,
+        }
+      : { ...RUNTIME_DEFAULTS },
     tasks: Array.isArray(state.tasks) ? state.tasks : initialGameState.tasks,
+    maids: Array.isArray(state.maids)
+      ? state.maids.map((maid) => {
+          const normalized = normalizeMaidState({
+            ...maid,
+            fatigue: Number.isFinite(maid.fatigue) ? maid.fatigue : 0,
+            consecutiveWorkDays: Number.isFinite(maid.consecutiveWorkDays) ? maid.consecutiveWorkDays : 0,
+            preferredShift:
+              maid.preferredShift === 'morning' || maid.preferredShift === 'peak' || maid.preferredShift === 'evening'
+                ? maid.preferredShift
+                : 'peak',
+            skillPoints: Number.isFinite(maid.skillPoints) ? maid.skillPoints : 0,
+            skills: maid.skills ?? createDefaultMaidSkills(),
+          });
+          return normalized;
+        })
+      : [],
     notifications: Array.isArray(state.notifications) ? state.notifications : [],
     selectedMaidId: state.selectedMaidId ?? null,
     selectedCustomerId: state.selectedCustomerId ?? null,
     desktopUI: normalizeDesktopUI(state),
+    staffing: normalizedStaffing,
+    activeIncident: null,
+    incidentHistory: Array.isArray(state.incidentHistory) ? state.incidentHistory.slice(-20) : [],
     dailySummaryOpen: false,
   };
 }
 
+function prepareStateForSave(state: GameState): GameState {
+  return {
+    ...state,
+    runtime: { ...RUNTIME_DEFAULTS },
+    notifications: [],
+    selectedMaidId: null,
+    selectedCustomerId: null,
+    activeIncident: null,
+    dailySummaryOpen: false,
+  };
+}
+
+function deflateMaids(maids: Maid[]): CompactMaid[] {
+  return maids.map((maid) => ({
+    id: maid.id,
+    name: maid.name,
+    avatarId: avatarPathToId(maid.avatar),
+    personality: maid.personality,
+    stats: maid.stats,
+    experience: maid.experience,
+    level: maid.level,
+    role: maid.role,
+    status: maid.status,
+    mood: maid.mood,
+    stamina: maid.stamina,
+    fatigue: maid.fatigue,
+    consecutiveWorkDays: maid.consecutiveWorkDays,
+    preferredShift: maid.preferredShift,
+    skillPoints: maid.skillPoints,
+    skills: maid.skills,
+    hireDate: maid.hireDate,
+  }));
+}
+
+function inflateMaids(compactMaids: CompactMaid[]): Maid[] {
+  const usedImages: string[] = [];
+
+  return compactMaids.map((maid) => {
+    const defaultAvatarPath = avatarIdToPath(maid.avatarId);
+    const normalized = normalizeMaidAvatarPath(defaultAvatarPath);
+    const avatar =
+      normalized && maidImagePoolSet.has(normalized)
+        ? normalized
+        : getRandomMaidImage(usedImages);
+
+    usedImages.push(avatar);
+
+    return {
+      id: maid.id,
+      name: maid.name,
+      avatar,
+      personality: maid.personality,
+      stats: maid.stats,
+      experience: getNumber(maid.experience, 0, 0),
+      level: getNumber(maid.level, 1, 1),
+      role: maid.role,
+      status: maid.status,
+      mood: getNumber(maid.mood, 100, 0, 100),
+      stamina: getNumber(maid.stamina, 100, 0, 100),
+      fatigue: getNumber(maid.fatigue, 0, 0, 100),
+      consecutiveWorkDays: getNumber(maid.consecutiveWorkDays, 0, 0),
+      preferredShift:
+        maid.preferredShift === 'morning' || maid.preferredShift === 'peak' || maid.preferredShift === 'evening'
+          ? maid.preferredShift
+          : 'peak',
+      skillPoints: getNumber(maid.skillPoints, 0, 0),
+      skills: {
+        service: getNumber(maid.skills?.service, 0, 0, 10),
+        guestCare: getNumber(maid.skills?.guestCare, 0, 0, 10),
+        emergency: getNumber(maid.skills?.emergency, 0, 0, 10),
+      },
+      hireDate: getNumber(maid.hireDate, Date.now(), 0),
+    };
+  });
+}
+
+function deflateMenuItems(state: GameState): CompactMenuItemState[] {
+  return state.menuItems.map((item) => ({
+    id: item.id,
+    currentPrice: item.currentPrice,
+    unlocked: item.unlocked,
+    popularity: item.popularity,
+  }));
+}
+
+function inflateMenuItems(menuStates: CompactMenuItemState[]) {
+  const byId = new Map(menuStates.map((item) => [item.id, item]));
+
+  return defaultMenuItems.map((item) => {
+    const compact = byId.get(item.id);
+    if (!compact) {
+      return { ...item };
+    }
+
+    return {
+      ...item,
+      currentPrice: getNumber(compact.currentPrice, item.currentPrice, 1),
+      unlocked: normalizeBoolean(compact.unlocked, item.unlocked),
+      popularity: getNumber(compact.popularity, item.popularity, 0, 100),
+    };
+  });
+}
+
+function deflateFacility(state: GameState): CompactFacilityState {
+  return {
+    cafeLevel: state.facility.cafeLevel,
+    maxSeats: state.facility.maxSeats,
+    decorationIds: state.facility.decorations.filter((item) => item.purchased).map((item) => item.id),
+    equipmentLevels: Object.fromEntries(state.facility.equipment.map((item) => [item.id, item.level])),
+    unlockedAreas: state.facility.unlockedAreas,
+  };
+}
+
+function inflateFacility(compact: CompactFacilityState): GameState['facility'] {
+  const decorationSet = new Set(
+    Array.isArray(compact.decorationIds) ? compact.decorationIds.filter((id): id is string => typeof id === 'string') : []
+  );
+  const equipmentLevels = isRecord(compact.equipmentLevels) ? compact.equipmentLevels : {};
+  const unlockedAreas = Array.isArray(compact.unlockedAreas)
+    ? compact.unlockedAreas.filter((area): area is Area => KNOWN_AREAS.has(area as Area))
+    : [];
+
+  const normalizedAreas: Area[] = unlockedAreas.includes('main') ? unlockedAreas : ['main', ...unlockedAreas];
+
+  return {
+    cafeLevel: getNumber(compact.cafeLevel, initialGameState.facility.cafeLevel, 1, GAME_CONSTANTS.MAX_CAFE_LEVEL),
+    maxSeats: getNumber(compact.maxSeats, initialGameState.facility.maxSeats, GAME_CONSTANTS.BASE_SEATS),
+    decorations: defaultDecorations.map((item) => ({
+      ...item,
+      purchased: decorationSet.has(item.id),
+    })),
+    equipment: defaultEquipment.map((item) => ({
+      ...item,
+      level: getNumber(equipmentLevels[item.id], item.level, 1, item.maxLevel),
+    })),
+    unlockedAreas: normalizedAreas,
+  };
+}
+
+function deflateTasks(state: GameState): CompactTaskState[] {
+  return state.tasks.map((task) => ({
+    id: task.id,
+    progress: task.progress,
+    completed: task.completed,
+    claimed: task.claimed,
+    dayAssigned: task.dayAssigned,
+  }));
+}
+
+function inflateTasks(taskStates: CompactTaskState[], day: number): GameState['tasks'] {
+  const byId = new Map(taskStates.map((task) => [task.id, task]));
+
+  return createInitialTasks(day).map((task) => {
+    const compact = byId.get(task.id);
+    if (!compact) {
+      return task;
+    }
+
+    return {
+      ...task,
+      progress: getNumber(compact.progress, task.progress, 0),
+      completed: normalizeBoolean(compact.completed, task.completed),
+      claimed: normalizeBoolean(compact.claimed, task.claimed),
+      dayAssigned: getNumber(compact.dayAssigned, task.dayAssigned, 1),
+    };
+  });
+}
+
+function deflateAchievements(state: GameState): CompactAchievementState[] {
+  return state.achievements.map((achievement) => ({
+    id: achievement.id,
+    unlocked: achievement.unlocked,
+    unlockedDate: achievement.unlockedDate,
+  }));
+}
+
+function inflateAchievements(achievementStates: CompactAchievementState[]): GameState['achievements'] {
+  const byId = new Map(achievementStates.map((achievement) => [achievement.id, achievement]));
+
+  return defaultAchievements.map((achievement) => {
+    const compact = byId.get(achievement.id);
+    if (!compact) {
+      return { ...achievement };
+    }
+
+    return {
+      ...achievement,
+      unlocked: normalizeBoolean(compact.unlocked, achievement.unlocked),
+      unlockedDate:
+        typeof compact.unlockedDate === 'number' || compact.unlockedDate === null
+          ? compact.unlockedDate
+          : achievement.unlockedDate,
+    };
+  });
+}
+
+function sanitizeFinance(finance: GameState['finance']): GameState['finance'] {
+  const history = Array.isArray(finance.history)
+    ? finance.history
+        .filter((item) => isRecord(item))
+        .map((item) => ({
+          day: getNumber(item.day, 1, 1),
+          revenue: getNumber(item.revenue, 0, 0),
+          expenses: getNumber(item.expenses, 0, 0),
+          profit: getNumber(item.profit, 0),
+        }))
+        .slice(-365)
+    : [];
+
+  return {
+    gold: getNumber(finance.gold, initialGameState.finance.gold, 0),
+    dailyRevenue: getNumber(finance.dailyRevenue, 0, 0),
+    dailyExpenses: getNumber(finance.dailyExpenses, 0, 0),
+    history,
+  };
+}
+
+function sanitizeStatistics(statistics: GameStatistics): GameStatistics {
+  return {
+    totalCustomersServed: getNumber(statistics.totalCustomersServed, 0, 0),
+    totalRevenue: getNumber(statistics.totalRevenue, 0, 0),
+    totalDaysPlayed: getNumber(statistics.totalDaysPlayed, 0, 0),
+    totalTipsEarned: getNumber(statistics.totalTipsEarned, 0, 0),
+    perfectServicesCount: getNumber(statistics.perfectServicesCount, 0, 0),
+    maidsHired: getNumber(statistics.maidsHired, 0, 0),
+  };
+}
+
+function buildCompactSaveData(state: GameState): CompactSaveData {
+  const prepared = prepareStateForSave(state);
+
+  return {
+    schema: COMPACT_SCHEMA_VERSION,
+    version: GAME_CONSTANTS.SAVE_VERSION,
+    timestamp: Date.now(),
+    day: prepared.day,
+    time: prepared.time,
+    season: prepared.season,
+    isPaused: prepared.isPaused,
+    isBusinessHours: prepared.isBusinessHours,
+    gameSpeed: prepared.gameSpeed,
+    maids: deflateMaids(prepared.maids),
+    menuItems: deflateMenuItems(prepared),
+    facility: deflateFacility(prepared),
+    finance: sanitizeFinance(prepared.finance),
+    tasks: deflateTasks(prepared),
+    achievements: deflateAchievements(prepared),
+    statistics: sanitizeStatistics(prepared.statistics),
+    reputation: getNumber(prepared.reputation, initialGameState.reputation, 0),
+    staffing: normalizeStaffingState(prepared.staffing),
+  };
+}
+
+function parseCompactSaveData(data: unknown): StorageResult<CompactSaveData> {
+  if (!isRecord(data)) {
+    return { success: false, error: '存档数据格式无效' };
+  }
+
+  const schema = getNumber(data.schema, -1);
+  if (schema !== COMPACT_SCHEMA_VERSION) {
+    return { success: false, error: '存档版本不受支持' };
+  }
+
+  if (typeof data.version !== 'string' || !isVersionCompatible(data.version)) {
+    return { success: false, error: '存档版本不受支持' };
+  }
+
+  if (!Number.isFinite(data.timestamp)) {
+    return { success: false, error: '存档缺少时间戳' };
+  }
+
+  if (!Array.isArray(data.maids) || !Array.isArray(data.menuItems) || !Array.isArray(data.tasks)) {
+    return { success: false, error: '存档核心字段缺失' };
+  }
+
+  if (!Array.isArray(data.achievements) || !isRecord(data.facility) || !isRecord(data.finance)) {
+    return { success: false, error: '存档核心字段缺失' };
+  }
+
+  if (!isRecord(data.statistics) || !isSeason(data.season) || !isGameSpeed(data.gameSpeed)) {
+    return { success: false, error: '存档内容损坏' };
+  }
+
+  return {
+    success: true,
+    data: data as unknown as CompactSaveData,
+  };
+}
+
+function inflateCompactSaveData(compact: CompactSaveData): GameState {
+  const fallback = getInitialState();
+  const day = getNumber(compact.day, fallback.day, 1);
+
+  const rebuilt: GameState = {
+    ...fallback,
+    day,
+    time: getNumber(compact.time, fallback.time, 0),
+    season: compact.season,
+    isPaused: normalizeBoolean(compact.isPaused, true),
+    isBusinessHours: normalizeBoolean(compact.isBusinessHours, true),
+    gameSpeed: compact.gameSpeed,
+    runtime: { ...RUNTIME_DEFAULTS },
+    maids: inflateMaids(Array.isArray(compact.maids) ? compact.maids : []),
+    customers: [],
+    menuItems: inflateMenuItems(Array.isArray(compact.menuItems) ? compact.menuItems : []),
+    facility: inflateFacility(compact.facility),
+    finance: sanitizeFinance(compact.finance),
+    activeEvents: [],
+    eventHistory: [],
+    activeIncident: null,
+    incidentHistory: [],
+    staffing: normalizeStaffingState(compact.staffing ?? DEFAULT_STAFFING_STATE),
+    achievements: inflateAchievements(Array.isArray(compact.achievements) ? compact.achievements : []),
+    statistics: sanitizeStatistics(compact.statistics),
+    tasks: inflateTasks(Array.isArray(compact.tasks) ? compact.tasks : [], day),
+    reputation: getNumber(compact.reputation, fallback.reputation, 0),
+    selectedMaidId: null,
+    selectedCustomerId: null,
+    activePanel: 'cafe',
+    desktopUI: createInitialDesktopUIState(),
+    notifications: [],
+    dailySummaryOpen: false,
+  };
+
+  return normalizeLoadedState(migrateMaidAvatars(rebuilt));
+}
+
 /**
- * 生成校验和 - 使用简单的字符串哈希算法
- * @param state 游戏状态
- * @returns 校验和字符串
+ * Legacy checksum used only for old localStorage migration.
  */
 export function generateChecksum(state: GameState): string {
   const stateString = JSON.stringify(state);
   let hash = 0;
-  for (let i = 0; i < stateString.length; i++) {
+  for (let i = 0; i < stateString.length; i += 1) {
     const char = stateString.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+    hash &= hash;
   }
   return Math.abs(hash).toString(16).padStart(8, '0');
 }
 
+function validateGameState(state: GameState): boolean {
+  const requiredFields: (keyof GameState)[] = [
+    'day', 'time', 'season', 'isPaused', 'isBusinessHours',
+    'maids', 'customers', 'menuItems', 'facility', 'finance',
+    'activeEvents', 'eventHistory', 'achievements', 'statistics',
+    'reputation', 'activePanel', 'notifications', 'gameSpeed', 'tasks', 'runtime',
+    'staffing', 'incidentHistory',
+  ];
+
+  for (const field of requiredFields) {
+    if (state[field] === undefined) {
+      return false;
+    }
+  }
+
+  if (typeof state.day !== 'number' || state.day < 1) return false;
+  if (typeof state.time !== 'number' || state.time < 0) return false;
+  if (typeof state.reputation !== 'number') return false;
+  if (typeof state.gameSpeed !== 'number') return false;
+  if (!Array.isArray(state.maids) || !Array.isArray(state.customers) || !Array.isArray(state.menuItems)) return false;
+  if (!Array.isArray(state.achievements) || !Array.isArray(state.notifications) || !Array.isArray(state.tasks)) return false;
+  if (!Array.isArray(state.incidentHistory)) return false;
+  if (!state.facility || typeof state.facility !== 'object') return false;
+  if (!state.finance || typeof state.finance !== 'object') return false;
+  if (!state.statistics || typeof state.statistics !== 'object') return false;
+  if (!state.runtime || typeof state.runtime !== 'object') return false;
+  if (!state.staffing || typeof state.staffing !== 'object') return false;
+
+  return true;
+}
+
 /**
- * 验证存档数据的完整性和有效性
- * @param data 待验证的数据
- * @returns 验证结果
+ * Legacy save validation used for migration from old localStorage format.
  */
 export function validateSaveData(data: unknown): StorageResult<SaveData> {
-  // 检查基本结构
   if (!data || typeof data !== 'object') {
     return { success: false, error: '存档数据格式无效' };
   }
 
   const saveData = data as Record<string, unknown>;
 
-  // 检查必要字段
   if (!saveData.version || typeof saveData.version !== 'string') {
-    return { success: false, error: '存档版本信息缺失' };
+    saveData.version = '0.0.0';
+  }
+
+  if (!isVersionCompatible(String(saveData.version))) {
+    return {
+      success: false,
+      error: `存档版本 ${saveData.version} 不受支持。当前版本: ${GAME_CONSTANTS.SAVE_VERSION}，最低支持: ${GAME_CONSTANTS.MIN_SUPPORTED_VERSION ?? '0.1.0'}`,
+    };
   }
 
   if (!saveData.timestamp || typeof saveData.timestamp !== 'number') {
@@ -152,306 +733,385 @@ export function validateSaveData(data: unknown): StorageResult<SaveData> {
     return { success: false, error: '校验和缺失' };
   }
 
-  // 验证校验和
   const gameState = saveData.gameState as GameState;
   const expectedChecksum = generateChecksum(gameState);
   if (saveData.checksum !== expectedChecksum) {
     return { success: false, error: '存档数据已损坏（校验和不匹配）' };
   }
 
-  // 验证游戏状态的关键字段
   if (!validateGameState(gameState)) {
     return { success: false, error: '游戏状态数据不完整' };
   }
 
-  return { 
-    success: true, 
-    data: saveData as unknown as SaveData 
+  return {
+    success: true,
+    data: saveData as unknown as SaveData,
   };
 }
 
+function hasLocalStorage(): boolean {
+  return typeof window !== 'undefined' && Boolean(window.localStorage);
+}
 
-/**
- * 验证游戏状态的关键字段是否存在
- * @param state 游戏状态
- * @returns 是否有效
- */
-function validateGameState(state: GameState): boolean {
-  // 检查必要的顶级字段
-  const requiredFields: (keyof GameState)[] = [
-    'day', 'time', 'season', 'isPaused', 'isBusinessHours',
-    'maids', 'customers', 'menuItems', 'facility', 'finance',
-    'activeEvents', 'eventHistory', 'achievements', 'statistics',
-    'reputation', 'activePanel', 'notifications'
-  ];
-
-  for (const field of requiredFields) {
-    if (state[field] === undefined) {
-      return false;
-    }
+function clearLegacyLocalKeys(): void {
+  if (!hasLocalStorage()) {
+    return;
   }
 
-  // 检查数值字段的有效性
-  if (typeof state.day !== 'number' || state.day < 1) return false;
-  if (typeof state.time !== 'number' || state.time < 0) return false;
-  if (typeof state.reputation !== 'number') return false;
-
-  // 检查数组字段
-  if (!Array.isArray(state.maids)) return false;
-  if (!Array.isArray(state.customers)) return false;
-  if (!Array.isArray(state.menuItems)) return false;
-  if (!Array.isArray(state.achievements)) return false;
-  if (!Array.isArray(state.notifications)) return false;
-
-  // 检查对象字段
-  if (!state.facility || typeof state.facility !== 'object') return false;
-  if (!state.finance || typeof state.finance !== 'object') return false;
-  if (!state.statistics || typeof state.statistics !== 'object') return false;
-
-  return true;
+  localStorage.removeItem(LOCAL_COMPACT_SAVE_KEY);
+  localStorage.removeItem(GAME_CONSTANTS.SAVE_KEY);
 }
 
-/**
- * 保存游戏到 localStorage
- * @param state 游戏状态
- * @returns 保存结果
- */
-export function saveGame(state: GameState): StorageResult<void> {
-  try {
-    // 检查 localStorage 是否可用
-    if (typeof window === 'undefined' || !window.localStorage) {
-      return { success: false, error: 'localStorage 不可用' };
-    }
-
-    const preparedState = prepareStateForSave(state);
-    const saveData: SaveData = {
-      version: GAME_CONSTANTS.SAVE_VERSION,
-      timestamp: Date.now(),
-      gameState: preparedState,
-      checksum: generateChecksum(preparedState),
-    };
-
-    const jsonString = JSON.stringify(saveData);
-    localStorage.setItem(GAME_CONSTANTS.SAVE_KEY, jsonString);
-
-    return { success: true };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '未知错误';
-    return { success: false, error: `保存失败: ${errorMessage}` };
+function loadLocalCompactState(): StorageResult<LocalLoadResult> {
+  if (!hasLocalStorage()) {
+    return { success: false, error: 'localStorage 不可用' };
   }
-}
 
-/**
- * 从 localStorage 加载游戏
- * @returns 加载结果，包含游戏状态或错误信息
- */
-export function loadGame(): StorageResult<GameState> {
-  try {
-    // 检查 localStorage 是否可用
-    if (typeof window === 'undefined' || !window.localStorage) {
-      return { success: false, error: 'localStorage 不可用' };
-    }
-
-    const jsonString = localStorage.getItem(GAME_CONSTANTS.SAVE_KEY);
-    
-    if (!jsonString) {
-      return { success: false, error: '没有找到存档' };
-    }
-
-    let parsedData: unknown;
-    try {
-      parsedData = JSON.parse(jsonString);
-    } catch {
-      return { success: false, error: '存档数据解析失败' };
-    }
-
-    const validationResult = validateSaveData(parsedData);
-    if (!validationResult.success) {
-      return { success: false, error: validationResult.error };
-    }
-
-    // 迁移旧存档中的女仆头像
-    const migratedState = migrateMaidAvatars(validationResult.data!.gameState);
-    const normalizedState = normalizeLoadedState(migratedState);
-
-    return { 
-      success: true, 
-      data: normalizedState
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '未知错误';
-    return { success: false, error: `加载失败: ${errorMessage}` };
+  const compactRaw = localStorage.getItem(LOCAL_COMPACT_SAVE_KEY);
+  if (!compactRaw) {
+    return { success: false, error: '没有找到存档' };
   }
-}
 
-
-/**
- * 导出存档为可下载的 JSON 文件
- * @param state 游戏状态
- * @returns 导出结果
- */
-export function exportSave(state: GameState): StorageResult<Blob> {
+  let parsed: unknown;
   try {
-    const preparedState = prepareStateForSave(state);
-    const saveData: SaveData = {
-      version: GAME_CONSTANTS.SAVE_VERSION,
-      timestamp: Date.now(),
-      gameState: preparedState,
-      checksum: generateChecksum(preparedState),
-    };
-
-    const jsonString = JSON.stringify(saveData, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-
-    return { success: true, data: blob };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '未知错误';
-    return { success: false, error: `导出失败: ${errorMessage}` };
+    parsed = JSON.parse(compactRaw);
+  } catch {
+    return { success: false, error: '存档数据解析失败' };
   }
+
+  const validation = parseCompactSaveData(parsed);
+  if (!validation.success || !validation.data) {
+    return { success: false, error: validation.error };
+  }
+
+  return {
+    success: true,
+    data: {
+      type: 'compact',
+      state: inflateCompactSaveData(validation.data),
+    },
+  };
 }
 
-/**
- * 触发文件下载
- * @param blob 文件数据
- * @param filename 文件名
- */
-export function downloadSave(blob: Blob, filename?: string): void {
-  const defaultFilename = `rosemary-cafe-save-${new Date().toISOString().slice(0, 10)}.json`;
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename || defaultFilename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
+function loadLegacyLocalState(): StorageResult<LocalLoadResult> {
+  if (!hasLocalStorage()) {
+    return { success: false, error: 'localStorage 不可用' };
+  }
 
-/**
- * 从文件导入存档
- * @param file 存档文件
- * @returns Promise，解析为游戏状态或错误
- */
-export async function importSave(file: File): Promise<StorageResult<GameState>> {
-  return new Promise((resolve) => {
-    // 检查文件类型
-    if (!file.name.endsWith('.json')) {
-      resolve({ success: false, error: '请选择 JSON 格式的存档文件' });
-      return;
-    }
+  const legacyRaw = localStorage.getItem(GAME_CONSTANTS.SAVE_KEY);
+  if (!legacyRaw) {
+    return { success: false, error: '没有找到存档' };
+  }
 
-    const reader = new FileReader();
-
-    reader.onload = (event) => {
-      try {
-        const content = event.target?.result;
-        if (typeof content !== 'string') {
-          resolve({ success: false, error: '文件读取失败' });
-          return;
-        }
-
-        let parsedData: unknown;
-        try {
-          parsedData = JSON.parse(content);
-        } catch {
-          resolve({ success: false, error: '存档文件格式无效' });
-          return;
-        }
-
-        const validationResult = validateSaveData(parsedData);
-        if (!validationResult.success) {
-          resolve({ success: false, error: validationResult.error });
-          return;
-        }
-
-        // 迁移旧存档中的女仆头像
-        const migratedState = migrateMaidAvatars(validationResult.data!.gameState);
-        const normalizedState = normalizeLoadedState(migratedState);
-
-        resolve({ 
-          success: true, 
-          data: normalizedState
-        });
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : '未知错误';
-        resolve({ success: false, error: `导入失败: ${errorMessage}` });
-      }
-    };
-
-    reader.onerror = () => {
-      resolve({ success: false, error: '文件读取错误' });
-    };
-
-    reader.readAsText(file);
-  });
-}
-
-/**
- * 删除存档
- * @returns 删除结果
- */
-export function deleteSave(): StorageResult<void> {
+  let parsed: unknown;
   try {
-    if (typeof window === 'undefined' || !window.localStorage) {
-      return { success: false, error: 'localStorage 不可用' };
-    }
+    parsed = JSON.parse(legacyRaw);
+  } catch {
+    return { success: false, error: '存档数据解析失败' };
+  }
 
+  const validation = validateSaveData(parsed);
+  if (!validation.success || !validation.data) {
+    return { success: false, error: validation.error };
+  }
+
+  const migratedState = migrateMaidAvatars(validation.data.gameState);
+  return {
+    success: true,
+    data: {
+      type: 'legacy',
+      state: normalizeLoadedState(migratedState),
+    },
+  };
+}
+
+function loadLocalStateForWeb(): StorageResult<GameState> {
+  const compact = loadLocalCompactState();
+  if (compact.success && compact.data) {
+    return { success: true, data: compact.data.state };
+  }
+  if (compact.error && compact.error !== '没有找到存档') {
+    return { success: false, error: compact.error };
+  }
+
+  const legacy = loadLegacyLocalState();
+  if (legacy.success && legacy.data) {
+    return { success: true, data: legacy.data.state };
+  }
+  if (legacy.error && legacy.error !== '没有找到存档') {
+    return { success: false, error: legacy.error };
+  }
+
+  return { success: false, error: '没有找到存档' };
+}
+
+function saveCompactToLocalStorage(data: CompactSaveData): StorageResult<void> {
+  if (!hasLocalStorage()) {
+    return { success: false, error: 'localStorage 不可用' };
+  }
+
+  try {
+    localStorage.setItem(LOCAL_COMPACT_SAVE_KEY, JSON.stringify(data));
     localStorage.removeItem(GAME_CONSTANTS.SAVE_KEY);
     return { success: true };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '未知错误';
-    return { success: false, error: `删除失败: ${errorMessage}` };
+    const message = error instanceof Error ? error.message : '未知错误';
+    return { success: false, error: `保存失败: ${message}` };
+  }
+}
+
+async function getTauriInvoke(): Promise<TauriInvoke | null> {
+  if (!isTauriDesktop()) {
+    return null;
+  }
+
+  if (!invokeLoader) {
+    invokeLoader = import('@tauri-apps/api/core')
+      .then((module) => module.invoke as TauriInvoke)
+      .catch(() => null);
+  }
+
+  return invokeLoader;
+}
+
+async function saveSecure(compact: CompactSaveData): Promise<StorageResult<void>> {
+  const invoke = await getTauriInvoke();
+  if (!invoke) {
+    return { success: false, error: '桌面存档接口不可用' };
+  }
+
+  try {
+    await invoke('save_secure_state', { payload: JSON.stringify(compact) });
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, error: `保存失败: ${message}` };
+  }
+}
+
+async function loadSecure(): Promise<StorageResult<CompactSaveData | null>> {
+  const invoke = await getTauriInvoke();
+  if (!invoke) {
+    return { success: false, error: '桌面存档接口不可用' };
+  }
+
+  try {
+    const payload = await invoke<string | null>('load_secure_state');
+    if (!payload) {
+      return { success: true, data: null };
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(payload);
+    } catch {
+      return { success: false, error: '存档内容解析失败' };
+    }
+
+    const validation = parseCompactSaveData(parsed);
+    if (!validation.success || !validation.data) {
+      return { success: false, error: validation.error };
+    }
+
+    return { success: true, data: validation.data };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, error: `加载失败: ${message}` };
+  }
+}
+
+async function migrateLegacyLocalStorageToSecure(): Promise<StorageResult<GameState>> {
+  const compact = loadLocalCompactState();
+  if (compact.success && compact.data) {
+    const saveResult = await saveSecure(buildCompactSaveData(compact.data.state));
+    if (saveResult.success) {
+      clearLegacyLocalKeys();
+    }
+    return { success: true, data: compact.data.state };
+  }
+
+  const legacy = loadLegacyLocalState();
+  if (!legacy.success || !legacy.data) {
+    return { success: false, error: '没有找到存档' };
+  }
+
+  const saveResult = await saveSecure(buildCompactSaveData(legacy.data.state));
+  if (saveResult.success) {
+    clearLegacyLocalKeys();
+  }
+
+  return { success: true, data: legacy.data.state };
+}
+
+/**
+ * Save game state.
+ * Desktop: encrypted/signed secure save file in app data directory.
+ * Web fallback: compact localStorage save.
+ */
+export async function saveGame(state: GameState): Promise<StorageResult<void>> {
+  try {
+    const compact = buildCompactSaveData(state);
+    const invoke = await getTauriInvoke();
+
+    if (invoke) {
+      return saveSecure(compact);
+    }
+
+    return saveCompactToLocalStorage(compact);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '未知错误';
+    return { success: false, error: `保存失败: ${message}` };
   }
 }
 
 /**
- * 检查是否存在存档
- * @returns 是否存在存档
+ * Load game state.
+ * Desktop: secure save file first; migrates local legacy save automatically if needed.
+ * Web fallback: loads compact local save, then legacy local save.
  */
-export function hasSave(): boolean {
+export async function loadGame(): Promise<StorageResult<GameState>> {
   try {
-    if (typeof window === 'undefined' || !window.localStorage) {
+    const invoke = await getTauriInvoke();
+
+    if (invoke) {
+      const secure = await loadSecure();
+      if (!secure.success) {
+        return { success: false, error: secure.error };
+      }
+
+      if (secure.data) {
+        return { success: true, data: inflateCompactSaveData(secure.data) };
+      }
+
+      return migrateLegacyLocalStorageToSecure();
+    }
+
+    return loadLocalStateForWeb();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '未知错误';
+    return { success: false, error: `加载失败: ${message}` };
+  }
+}
+
+/**
+ * Export is intentionally disabled for local-only anti-tamper desktop mode.
+ */
+export function exportSave(_state: GameState): StorageResult<Blob> {
+  return { success: false, error: '当前版本已禁用导出存档' };
+}
+
+/**
+ * Download helper kept for API compatibility. Export is disabled.
+ */
+export function downloadSave(_blob: Blob, _filename?: string): void {
+  // no-op: export is intentionally disabled
+}
+
+/**
+ * Import is intentionally disabled for local-only anti-tamper desktop mode.
+ */
+export async function importSave(_file: File): Promise<StorageResult<GameState>> {
+  return { success: false, error: '当前版本已禁用导入存档' };
+}
+
+export async function deleteSave(): Promise<StorageResult<void>> {
+  try {
+    const invoke = await getTauriInvoke();
+    if (invoke) {
+      await invoke('delete_secure_state');
+      clearLegacyLocalKeys();
+      return { success: true };
+    }
+
+    if (!hasLocalStorage()) {
+      return { success: false, error: 'localStorage 不可用' };
+    }
+
+    clearLegacyLocalKeys();
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '未知错误';
+    return { success: false, error: `删除失败: ${message}` };
+  }
+}
+
+export async function hasSave(): Promise<boolean> {
+  try {
+    const invoke = await getTauriInvoke();
+    if (invoke) {
+      return await invoke<boolean>('has_secure_state');
+    }
+
+    if (!hasLocalStorage()) {
       return false;
     }
-    return localStorage.getItem(GAME_CONSTANTS.SAVE_KEY) !== null;
+
+    return Boolean(localStorage.getItem(LOCAL_COMPACT_SAVE_KEY) || localStorage.getItem(GAME_CONSTANTS.SAVE_KEY));
   } catch {
     return false;
   }
 }
 
-/**
- * 获取存档信息（不加载完整状态）
- * @returns 存档基本信息
- */
-export function getSaveInfo(): StorageResult<{ version: string; timestamp: number; day: number }> {
+export async function getSaveInfo(): Promise<StorageResult<SaveInfoData>> {
   try {
-    if (typeof window === 'undefined' || !window.localStorage) {
+    const invoke = await getTauriInvoke();
+    if (invoke) {
+      const info = await invoke<SaveInfoData | null>('get_secure_state_info');
+      if (!info) {
+        return { success: false, error: '没有找到存档' };
+      }
+      return { success: true, data: info };
+    }
+
+    if (!hasLocalStorage()) {
       return { success: false, error: 'localStorage 不可用' };
     }
 
-    const jsonString = localStorage.getItem(GAME_CONSTANTS.SAVE_KEY);
-    if (!jsonString) {
+    const compactRaw = localStorage.getItem(LOCAL_COMPACT_SAVE_KEY);
+    if (compactRaw) {
+      const parsed = JSON.parse(compactRaw) as unknown;
+      const validation = parseCompactSaveData(parsed);
+      if (!validation.success || !validation.data) {
+        return { success: false, error: validation.error };
+      }
+
+      return {
+        success: true,
+        data: {
+          version: validation.data.version,
+          timestamp: validation.data.timestamp,
+          day: validation.data.day,
+        },
+      };
+    }
+
+    const legacyRaw = localStorage.getItem(GAME_CONSTANTS.SAVE_KEY);
+    if (!legacyRaw) {
       return { success: false, error: '没有找到存档' };
     }
 
-    const parsedData = JSON.parse(jsonString) as SaveData;
+    const parsed = JSON.parse(legacyRaw) as unknown;
+    const legacyValidation = validateSaveData(parsed);
+    if (!legacyValidation.success || !legacyValidation.data) {
+      return { success: false, error: legacyValidation.error };
+    }
+
     return {
       success: true,
       data: {
-        version: parsedData.version,
-        timestamp: parsedData.timestamp,
-        day: parsedData.gameState.day,
+        version: legacyValidation.data.version,
+        timestamp: legacyValidation.data.timestamp,
+        day: legacyValidation.data.gameState.day,
       },
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '未知错误';
-    return { success: false, error: `获取存档信息失败: ${errorMessage}` };
+    const message = error instanceof Error ? error.message : '未知错误';
+    return { success: false, error: `获取存档信息失败: ${message}` };
   }
 }
 
 /**
- * 获取新游戏的初始状态
- * @returns 初始游戏状态
+ * Get a clean initial state.
  */
 export function getInitialState(): GameState {
   return {
@@ -461,37 +1121,41 @@ export function getInitialState(): GameState {
 }
 
 /**
- * 迁移旧存档中的女仆头像
- * 将 emoji 头像替换为真实图片路径
- * @param state 游戏状态
- * @returns 迁移后的游戏状态
+ * Migrate maid avatars to known image paths.
  */
 export function migrateMaidAvatars(state: GameState): GameState {
   const usedImages: string[] = [];
-  const imagePoolSet = new Set(maidImagePool);
-  
+
   const migratedMaids: Maid[] = state.maids.map((maid) => {
     const normalizedAvatar = maid.avatar ? normalizeMaidAvatarPath(maid.avatar) : '';
 
-    // Keep existing avatar when it can be normalized to a known image path.
-    if (normalizedAvatar && imagePoolSet.has(normalizedAvatar)) {
+    if (normalizedAvatar && maidImagePoolSet.has(normalizedAvatar)) {
       usedImages.push(normalizedAvatar);
       return {
         ...maid,
         avatar: normalizedAvatar,
       };
     }
-    
-    // 分配新的图片
+
+    const fromAvatarId = avatarIdToPath(avatarPathToId(maid.avatar));
+    const normalizedFromId = normalizeMaidAvatarPath(fromAvatarId);
+    if (normalizedFromId && maidImagePoolSet.has(normalizedFromId)) {
+      usedImages.push(normalizedFromId);
+      return {
+        ...maid,
+        avatar: normalizedFromId,
+      };
+    }
+
     const newAvatar = getRandomMaidImage(usedImages);
     usedImages.push(newAvatar);
-    
+
     return {
       ...maid,
       avatar: newAvatar,
     };
   });
-  
+
   return {
     ...state,
     maids: migratedMaids,

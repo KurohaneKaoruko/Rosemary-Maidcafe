@@ -2,6 +2,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useGame } from '@/components/game/GameProvider';
+import { CustomerDetailPanel } from '@/components/cafe/CustomerDetailPanel';
+import { MaidDetailPanel } from '@/components/cafe/MaidDetailPanel';
 import { AchievementPanel } from '@/components/panels/AchievementPanel';
 import { FinancePanel } from '@/components/panels/FinancePanel';
 import { SettingsPanel } from '@/components/panels/SettingsPanel';
@@ -29,6 +31,59 @@ type InteractionMode = 'drag' | 'resize' | null;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function toPixel(value: number): number {
+  return Math.round(value);
+}
+
+const FLOATING_WINDOW_TITLEBAR_HEIGHT = 42;
+const FLOATING_WINDOW_VISIBLE_TITLE_MIN_WIDTH = 140;
+const FLOATING_WINDOW_MIN_VIEWPORT_WIDTH = 320;
+const FLOATING_WINDOW_MIN_VIEWPORT_HEIGHT = 260;
+
+function getFloatingDragBounds(
+  windowWidth: number,
+  windowHeight: number,
+  containerWidth: number,
+  containerHeight: number
+) {
+  const visibleTitleWidth = Math.min(
+    windowWidth,
+    FLOATING_WINDOW_VISIBLE_TITLE_MIN_WIDTH,
+    Math.max(32, containerWidth)
+  );
+  const visibleTitleHeight = Math.min(
+    FLOATING_WINDOW_TITLEBAR_HEIGHT,
+    Math.max(24, containerHeight)
+  );
+
+  return {
+    minX: -Math.max(0, windowWidth - visibleTitleWidth),
+    maxX: Math.max(0, containerWidth - visibleTitleWidth),
+    minY: -Math.max(0, windowHeight - visibleTitleHeight),
+    maxY: Math.max(0, containerHeight - visibleTitleHeight),
+  };
+}
+
+function FloatingWindowEmptyState({
+  icon,
+  title,
+  description,
+}: {
+  icon: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="floating-window-empty">
+      <div className="floating-window-empty__icon" aria-hidden>
+        {icon}
+      </div>
+      <div className="floating-window-empty__title">{title}</div>
+      <div className="floating-window-empty__desc">{description}</div>
+    </div>
+  );
 }
 
 function FloatingWindowCard({
@@ -96,15 +151,22 @@ function FloatingWindowCard({
         const deltaX = event.clientX - dragStart.pointerX;
         const deltaY = event.clientY - dragStart.pointerY;
         const { width, height } = getContainerBounds();
-
-        const maxX = Math.max(0, width - currentWindow.width);
-        const maxY = Math.max(0, height - (currentWindow.minimized ? 48 : currentWindow.height));
-
-        onMoveRef.current(
-          currentWindow.id,
-          clamp(dragStart.originX + deltaX, 0, maxX),
-          clamp(dragStart.originY + deltaY, 0, maxY)
+        const dragBounds = getFloatingDragBounds(
+          currentWindow.width,
+          currentWindow.height,
+          width,
+          height
         );
+
+        const nextX = toPixel(
+          clamp(dragStart.originX + deltaX, dragBounds.minX, dragBounds.maxX)
+        );
+        const nextY = toPixel(
+          clamp(dragStart.originY + deltaY, dragBounds.minY, dragBounds.maxY)
+        );
+        if (nextX !== toPixel(currentWindow.x) || nextY !== toPixel(currentWindow.y)) {
+          onMoveRef.current(currentWindow.id, nextX, nextY);
+        }
         return;
       }
 
@@ -113,19 +175,28 @@ function FloatingWindowCard({
         const deltaX = event.clientX - resizeStart.pointerX;
         const deltaY = event.clientY - resizeStart.pointerY;
         const { width, height } = getContainerBounds();
+        const availableWidth = Math.max(FLOATING_WINDOW_MIN_VIEWPORT_WIDTH, width - 20);
+        const availableHeight = Math.max(FLOATING_WINDOW_MIN_VIEWPORT_HEIGHT, height - 20);
+        const effectiveMinWidth = Math.min(currentWindow.minWidth, availableWidth);
+        const effectiveMinHeight = Math.min(currentWindow.minHeight, availableHeight);
 
-        const nextWidth = clamp(
+        const nextWidth = toPixel(clamp(
           resizeStart.originWidth + deltaX,
-          currentWindow.minWidth,
-          Math.max(currentWindow.minWidth, width - currentWindow.x)
-        );
-        const nextHeight = clamp(
+          effectiveMinWidth,
+          availableWidth
+        ));
+        const nextHeight = toPixel(clamp(
           resizeStart.originHeight + deltaY,
-          currentWindow.minHeight,
-          Math.max(currentWindow.minHeight, height - currentWindow.y)
-        );
+          effectiveMinHeight,
+          availableHeight
+        ));
 
-        onResizeRef.current(currentWindow.id, nextWidth, nextHeight);
+        if (
+          nextWidth !== toPixel(currentWindow.width) ||
+          nextHeight !== toPixel(currentWindow.height)
+        ) {
+          onResizeRef.current(currentWindow.id, nextWidth, nextHeight);
+        }
       }
     },
     [getContainerBounds]
@@ -137,7 +208,6 @@ function FloatingWindowCard({
         return;
       }
 
-      const previousMode = interactionModeRef.current;
       const previousPointerId = activePointerIdRef.current;
       const captureElement = captureElementRef.current;
 
@@ -150,33 +220,6 @@ function FloatingWindowCard({
       }
       captureElementRef.current = null;
 
-      if (previousMode === 'drag' && dragStartRef.current) {
-        const currentWindow = latestWindowStateRef.current;
-        const { width, height } = getContainerBounds();
-        const maxX = Math.max(0, width - currentWindow.width);
-        const maxY = Math.max(0, height - (currentWindow.minimized ? 48 : currentWindow.height));
-        const snapThreshold = 14;
-
-        let snappedX = currentWindow.x;
-        let snappedY = currentWindow.y;
-
-        if (snappedX <= snapThreshold) {
-          snappedX = 0;
-        } else if (snappedX >= maxX - snapThreshold) {
-          snappedX = maxX;
-        }
-
-        if (snappedY <= snapThreshold) {
-          snappedY = 0;
-        } else if (snappedY >= maxY - snapThreshold) {
-          snappedY = maxY;
-        }
-
-        if (snappedX !== currentWindow.x || snappedY !== currentWindow.y) {
-          onMoveRef.current(currentWindow.id, snappedX, snappedY);
-        }
-      }
-
       interactionModeRef.current = null;
       activePointerIdRef.current = null;
       dragStartRef.current = null;
@@ -186,7 +229,7 @@ function FloatingWindowCard({
       window.removeEventListener('pointercancel', handlePointerUp);
       document.body.style.userSelect = '';
     },
-    [getContainerBounds, handlePointerMove]
+    [handlePointerMove]
   );
 
   useEffect(() => {
@@ -198,6 +241,9 @@ function FloatingWindowCard({
   const startDrag = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
       if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+      if (event.detail > 1) {
         return;
       }
 
@@ -265,6 +311,41 @@ function FloatingWindowCard({
     onFocus(windowState.id);
   }, [onFocus, windowState.id]);
 
+  const handleTitlebarDoubleClick = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const currentWindow = latestWindowStateRef.current;
+      if (currentWindow.minimized) {
+        return;
+      }
+
+      const { width, height } = getContainerBounds();
+      const dragBounds = getFloatingDragBounds(
+        currentWindow.width,
+        currentWindow.height,
+        width,
+        height
+      );
+
+      const targetX = toPixel(clamp(
+        (width - currentWindow.width) / 2,
+        dragBounds.minX,
+        dragBounds.maxX
+      ));
+      const targetY = toPixel(clamp(
+        (height - currentWindow.height) / 2,
+        dragBounds.minY,
+        dragBounds.maxY
+      ));
+
+      onMoveRef.current(currentWindow.id, targetX, targetY);
+      onFocus(currentWindow.id);
+    },
+    [getContainerBounds, onFocus]
+  );
+
   return (
     <section
       className={`floating-window ${active ? 'floating-window--active' : ''}`}
@@ -277,7 +358,11 @@ function FloatingWindowCard({
       }}
       onPointerDown={handleFocus}
     >
-      <header className="floating-window__titlebar" onPointerDown={startDrag}>
+      <header
+        className="floating-window__titlebar"
+        onPointerDown={startDrag}
+        onDoubleClick={handleTitlebarDoubleClick}
+      >
         <div className="floating-window__title">
           <span className="floating-window__title-dot" />
           <span>{windowState.title}</span>
@@ -323,21 +408,6 @@ function FloatingWindowCard({
   );
 }
 
-function renderWindowContent(windowId: FloatingWindowId): React.ReactNode {
-  switch (windowId) {
-    case 'tasks':
-      return <TaskPanel />;
-    case 'achievements':
-      return <AchievementPanel />;
-    case 'finance':
-      return <FinancePanel />;
-    case 'settings':
-      return <SettingsPanel />;
-    default:
-      return null;
-  }
-}
-
 export function FloatingWindowsLayer({ enabled }: FloatingWindowsLayerProps) {
   const { state, dispatch } = useGame();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -353,6 +423,39 @@ export function FloatingWindowsLayer({ enabled }: FloatingWindowsLayerProps) {
 
   const minimizedWindows = openWindows.filter((windowState) => windowState.minimized);
 
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const hasSelectedMaid =
+      !!state.selectedMaidId && state.maids.some((maid) => maid.id === state.selectedMaidId);
+    if (windows.maidDetail.open && !hasSelectedMaid) {
+      dispatch({ type: 'CLOSE_FLOATING_WINDOW', windowId: 'maidDetail' });
+      if (state.selectedMaidId) {
+        dispatch({ type: 'SELECT_MAID', maidId: null });
+      }
+    }
+
+    const hasSelectedCustomer =
+      !!state.selectedCustomerId && state.customers.some((customer) => customer.id === state.selectedCustomerId);
+    if (windows.customerDetail.open && !hasSelectedCustomer) {
+      dispatch({ type: 'CLOSE_FLOATING_WINDOW', windowId: 'customerDetail' });
+      if (state.selectedCustomerId) {
+        dispatch({ type: 'SELECT_CUSTOMER', customerId: null });
+      }
+    }
+  }, [
+    dispatch,
+    enabled,
+    state.customers,
+    state.maids,
+    state.selectedCustomerId,
+    state.selectedMaidId,
+    windows.customerDetail.open,
+    windows.maidDetail.open,
+  ]);
+
   const handleFocus = useCallback(
     (windowId: FloatingWindowId) => {
       dispatch({ type: 'FOCUS_FLOATING_WINDOW', windowId });
@@ -362,6 +465,12 @@ export function FloatingWindowsLayer({ enabled }: FloatingWindowsLayerProps) {
 
   const handleClose = useCallback(
     (windowId: FloatingWindowId) => {
+      if (windowId === 'maidDetail') {
+        dispatch({ type: 'SELECT_MAID', maidId: null });
+      }
+      if (windowId === 'customerDetail') {
+        dispatch({ type: 'SELECT_CUSTOMER', customerId: null });
+      }
       dispatch({ type: 'CLOSE_FLOATING_WINDOW', windowId });
     },
     [dispatch]
@@ -395,6 +504,66 @@ export function FloatingWindowsLayer({ enabled }: FloatingWindowsLayerProps) {
     [dispatch]
   );
 
+  const renderWindowContent = useCallback(
+    (windowId: FloatingWindowId): React.ReactNode => {
+      switch (windowId) {
+        case 'tasks':
+          return <TaskPanel />;
+        case 'achievements':
+          return <AchievementPanel />;
+        case 'finance':
+          return <FinancePanel />;
+        case 'settings':
+          return <SettingsPanel />;
+        case 'maidDetail': {
+          const maid = state.selectedMaidId
+            ? state.maids.find((item) => item.id === state.selectedMaidId) ?? null
+            : null;
+          if (!maid) {
+            return (
+              <FloatingWindowEmptyState
+                icon="👧"
+                title="未选中女仆"
+                description="在咖啡厅中点击任意女仆卡片即可查看详情。"
+              />
+            );
+          }
+          return (
+            <div className="floating-window-detail">
+              <MaidDetailPanel
+                maid={maid}
+                onRoleChange={(maidId, role) => dispatch({ type: 'ASSIGN_ROLE', maidId, role })}
+                onToggleRest={(maidId) => dispatch({ type: 'TOGGLE_MAID_REST', maidId })}
+              />
+            </div>
+          );
+        }
+        case 'customerDetail': {
+          const customer = state.selectedCustomerId
+            ? state.customers.find((item) => item.id === state.selectedCustomerId) ?? null
+            : null;
+          if (!customer) {
+            return (
+              <FloatingWindowEmptyState
+                icon="👤"
+                title="未选中顾客"
+                description="在咖啡厅中点击任意顾客卡片即可查看详情。"
+              />
+            );
+          }
+          return (
+            <div className="floating-window-detail">
+              <CustomerDetailPanel customer={customer} />
+            </div>
+          );
+        }
+        default:
+          return null;
+      }
+    },
+    [dispatch, state.customers, state.maids, state.selectedCustomerId, state.selectedMaidId]
+  );
+
   useEffect(() => {
     if (!enabled || openWindows.length === 0) {
       return;
@@ -409,17 +578,27 @@ export function FloatingWindowsLayer({ enabled }: FloatingWindowsLayerProps) {
       const viewportHeight = bounds ? bounds.height : window.innerHeight;
 
       for (const windowState of openWindows) {
-        const maxWidth = Math.max(windowState.minWidth, viewportWidth - 20);
-        const maxHeight = Math.max(windowState.minHeight, viewportHeight - 20);
-        const nextWidth = clamp(windowState.width, windowState.minWidth, maxWidth);
-        const nextHeight = clamp(windowState.height, windowState.minHeight, maxHeight);
+        // If viewport becomes smaller than configured minimums, allow temporary shrink-to-fit.
+        const availableWidth = Math.max(FLOATING_WINDOW_MIN_VIEWPORT_WIDTH, viewportWidth - 20);
+        const availableHeight = Math.max(FLOATING_WINDOW_MIN_VIEWPORT_HEIGHT, viewportHeight - 20);
+        const effectiveMinWidth = Math.min(windowState.minWidth, availableWidth);
+        const effectiveMinHeight = Math.min(windowState.minHeight, availableHeight);
+        const nextWidth = toPixel(clamp(windowState.width, effectiveMinWidth, availableWidth));
+        const nextHeight = toPixel(clamp(windowState.height, effectiveMinHeight, availableHeight));
+        const dragBounds = getFloatingDragBounds(
+          nextWidth,
+          nextHeight,
+          viewportWidth,
+          viewportHeight
+        );
+        const nextX = toPixel(clamp(windowState.x, dragBounds.minX, dragBounds.maxX));
+        const nextY = toPixel(clamp(windowState.y, dragBounds.minY, dragBounds.maxY));
+        const currentWidth = toPixel(windowState.width);
+        const currentHeight = toPixel(windowState.height);
+        const currentX = toPixel(windowState.x);
+        const currentY = toPixel(windowState.y);
 
-        const maxX = Math.max(0, viewportWidth - nextWidth);
-        const maxY = Math.max(0, viewportHeight - (windowState.minimized ? 50 : nextHeight));
-        const nextX = clamp(windowState.x, 0, maxX);
-        const nextY = clamp(windowState.y, 0, maxY);
-
-        if (nextWidth !== windowState.width || nextHeight !== windowState.height) {
+        if (nextWidth !== currentWidth || nextHeight !== currentHeight) {
           dispatch({
             type: 'RESIZE_FLOATING_WINDOW',
             windowId: windowState.id,
@@ -428,7 +607,7 @@ export function FloatingWindowsLayer({ enabled }: FloatingWindowsLayerProps) {
           });
         }
 
-        if (nextX !== windowState.x || nextY !== windowState.y) {
+        if (nextX !== currentX || nextY !== currentY) {
           dispatch({
             type: 'MOVE_FLOATING_WINDOW',
             windowId: windowState.id,

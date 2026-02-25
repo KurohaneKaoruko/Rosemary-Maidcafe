@@ -9,6 +9,7 @@ interface CustomerCardProps {
   onClick?: () => void;
   selected?: boolean;
   compact?: boolean;
+  comboMultiplier?: number;
 }
 
 const customerTypeLabels: Record<CustomerType, string> = {
@@ -40,6 +41,7 @@ export function CustomerCard({
   onClick,
   selected = false,
   compact = false,
+  comboMultiplier = 1,
 }: CustomerCardProps) {
   const isPatienceLow = customer.patience < 30;
   const isPatienceCritical = customer.patience < 15;
@@ -147,6 +149,16 @@ export function CustomerCard({
           </div>
         </div>
       )}
+
+      {comboMultiplier > 1 &&
+        (customer.status === 'waiting_order' ||
+          customer.status === 'eating' ||
+          customer.status === 'paying') && (
+          <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+            <span>🔥</span>
+            <span>连击收益 x{comboMultiplier.toFixed(2)}</span>
+          </div>
+        )}
 
       {/* Satisfaction indicator (when eating or paying) */}
       {(customer.status === 'eating' || customer.status === 'paying') && (

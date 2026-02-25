@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Achievement } from '@/types';
 import { useGame } from '@/components/game/GameProvider';
-import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
+import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 
 type FilterType = 'all' | 'unlocked' | 'locked';
@@ -66,23 +66,19 @@ export function AchievementPanel() {
   };
 
   return (
-    <div className="min-h-full flex flex-col gap-4 p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-800">
-          🏆 成就系统
-        </h2>
-        <div className="text-sm text-gray-500">
+    <div className="min-h-full flex min-w-0 flex-col gap-3 px-0 py-3 sm:gap-4 sm:py-4">
+      {/* Top Meta: title comes from floating window frame */}
+      <div className="flex items-center justify-end px-0">
+        <div className="text-xs text-gray-500 sm:text-sm">
           已解锁 {unlockedCount} / {totalCount}
         </div>
       </div>
-
       {/* Progress Overview */}
       <Card>
         <CardBody>
-          <div className="flex items-center gap-4">
-            <div className="text-4xl">🏆</div>
-            <div className="flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-3 sm:gap-4">
+            <div className="shrink-0 text-3xl sm:text-4xl">🏆</div>
+            <div className="min-w-[160px] flex-1">
               <div className="text-sm text-gray-500 mb-1">成就进度</div>
               <ProgressBar
                 value={unlockedCount}
@@ -97,41 +93,17 @@ export function AchievementPanel() {
       </Card>
 
       {/* Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard
-          label="服务顾客"
-          value={statistics.totalCustomersServed}
-          icon={<span className="text-xl">👥</span>}
-        />
-        <StatCard
-          label="累计收入"
-          value={statistics.totalRevenue}
-          icon={<span className="text-xl">💰</span>}
-        />
-        <StatCard
-          label="经营天数"
-          value={statistics.totalDaysPlayed}
-          icon={<span className="text-xl">📅</span>}
-        />
-        <StatCard
-          label="雇佣女仆"
-          value={statistics.maidsHired}
-          icon={<span className="text-xl">👧</span>}
-        />
-        <StatCard
-          label="累计小费"
-          value={statistics.totalTipsEarned}
-          icon={<span className="text-xl">💵</span>}
-        />
-        <StatCard
-          label="完美服务"
-          value={statistics.perfectServicesCount}
-          icon={<span className="text-xl">⭐</span>}
-        />
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(132px,1fr))] gap-2 sm:gap-3">
+        <AchievementStatItem label="服务顾客" value={statistics.totalCustomersServed} icon="👥" />
+        <AchievementStatItem label="累计收入" value={statistics.totalRevenue} icon="💰" />
+        <AchievementStatItem label="经营天数" value={statistics.totalDaysPlayed} icon="📅" />
+        <AchievementStatItem label="雇佣女仆" value={statistics.maidsHired} icon="👧" />
+        <AchievementStatItem label="累计小费" value={statistics.totalTipsEarned} icon="💵" />
+        <AchievementStatItem label="完美服务" value={statistics.perfectServicesCount} icon="⭐" />
       </div>
 
       {/* Filter Buttons */}
-      <div className="flex gap-2">
+      <div className="grid min-w-0 grid-cols-3 gap-2">
         <FilterButton
           active={filter === 'all'}
           onClick={() => setFilter('all')}
@@ -156,16 +128,16 @@ export function AchievementPanel() {
         {Object.entries(groupedAchievements).map(([type, typeAchievements]) => (
           <Card key={type}>
             <CardHeader>
-              <div className="flex items-center gap-2">
-                <span>{conditionTypeIcons[type] || '🎯'}</span>
-                <span>{conditionTypeLabels[type] || type}</span>
-                <span className="text-sm text-gray-500">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="shrink-0">{conditionTypeIcons[type] || '🎯'}</span>
+                <span className="min-w-0 truncate">{conditionTypeLabels[type] || type}</span>
+                <span className="rounded-full bg-gray-50 px-2 py-0.5 text-xs text-gray-500 sm:text-sm">
                   ({typeAchievements.filter((a) => a.unlocked).length}/{typeAchievements.length})
                 </span>
               </div>
             </CardHeader>
             <CardBody>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-3">
                 {typeAchievements.map((achievement) => (
                   <AchievementCard
                     key={achievement.id}
@@ -190,6 +162,23 @@ export function AchievementPanel() {
 }
 
 
+function AchievementStatItem({ label, value, icon }: { label: string; value: number; icon: string }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-gray-100 bg-white px-2.5 py-2.5 sm:px-3 sm:py-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pink-50 text-base text-pink-600">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-[11px] text-gray-500 sm:text-xs">{label}</div>
+          <div className="truncate text-base font-bold text-gray-800 sm:text-lg">{value}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // Filter Button Component
 interface FilterButtonProps {
   active: boolean;
@@ -207,16 +196,17 @@ function FilterButton({ active, onClick, label, color = 'pink' }: FilterButtonPr
 
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`
-        px-4 py-2 rounded-xl text-sm font-medium transition-colors
+        flex h-full w-full min-w-0 items-center justify-center rounded-lg px-2.5 py-1.5 text-center text-xs font-medium leading-tight transition-colors sm:px-3 sm:py-2 sm:text-sm
         ${active
           ? activeColors[color]
           : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
         }
       `}
     >
-      {label}
+      <span className="min-w-0 break-words">{label}</span>
     </button>
   );
 }
@@ -234,17 +224,17 @@ function AchievementCard({ achievement, currentValue }: AchievementCardProps) {
   return (
     <div
       className={`
-        p-4 rounded-xl border-2 transition-all
+        min-w-0 rounded-xl border-2 p-3 transition-all sm:p-4
         ${unlocked
           ? 'border-yellow-400 bg-yellow-50'
           : 'border-gray-100 bg-gray-50'
         }
       `}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex min-w-0 items-start gap-3">
         {/* Icon */}
         <div className={`
-          text-3xl p-2 rounded-xl
+          shrink-0 rounded-xl p-2 text-2xl
           ${unlocked
             ? 'bg-yellow-100'
             : 'bg-gray-200 grayscale'
@@ -255,7 +245,7 @@ function AchievementCard({ achievement, currentValue }: AchievementCardProps) {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h4 className={`font-medium truncate ${
               unlocked
                 ? 'text-yellow-700'
@@ -277,7 +267,7 @@ function AchievementCard({ achievement, currentValue }: AchievementCardProps) {
           {/* Progress */}
           {!unlocked && (
             <div className="mt-2">
-              <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
                 <span>进度</span>
                 <span>{currentValue} / {condition.target}</span>
               </div>
@@ -291,14 +281,14 @@ function AchievementCard({ achievement, currentValue }: AchievementCardProps) {
           )}
 
           {/* Reward */}
-          <div className="mt-2 flex items-center justify-between">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5">
             <span className={`text-sm ${
               unlocked ? 'text-yellow-600' : 'text-gray-500'
             }`}>
               奖励: 💰 {reward}
             </span>
             {unlocked && unlockedDate && (
-              <span className="text-xs text-gray-400">
+              <span className="shrink-0 text-xs text-gray-400">
                 {new Date(unlockedDate).toLocaleDateString()}
               </span>
             )}
@@ -310,3 +300,5 @@ function AchievementCard({ achievement, currentValue }: AchievementCardProps) {
 }
 
 export default AchievementPanel;
+
+

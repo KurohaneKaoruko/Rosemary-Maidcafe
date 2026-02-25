@@ -4,7 +4,7 @@
     "beforeBuildCommand": "npm run next:build",
     "beforeDevCommand": "npm run next:dev",
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:3000"
+    "devUrl": "http://localhost:3527"
   },
   "bundle": {
     "active": true,

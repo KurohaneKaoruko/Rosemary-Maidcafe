@@ -4,7 +4,24 @@ import React, { useMemo } from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { Button } from '@/components/ui/Button';
 import { calculateEfficiency } from '@/systems/maidSystem';
-import { Customer, MenuItem } from '@/types';
+import { Customer, CustomerStatus, CustomerType, MenuItem } from '@/types';
+
+const customerTypeLabels: Record<CustomerType, string> = {
+  regular: '普通',
+  vip: 'VIP',
+  critic: '评论家',
+  group: '团体',
+};
+
+const customerStatusLabels: Record<CustomerStatus, string> = {
+  waiting_seat: '等待入座',
+  seated: '已入座',
+  ordering: '点餐中',
+  waiting_order: '等待上餐',
+  eating: '用餐中',
+  paying: '结账中',
+  leaving: '离开中',
+};
 
 export function CustomerDetailPanel({ customer }: { customer: Customer }) {
   const { state, dispatch } = useGame();
@@ -35,7 +52,22 @@ export function CustomerDetailPanel({ customer }: { customer: Customer }) {
   const canServeNow = customer.status === 'seated' && availableMaids.length > 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0">
+      <div className="rounded-xl border border-pink-100 bg-white/90 px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <span className="shrink-0 text-3xl leading-none">{customer.avatar}</span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-gray-800">{customer.name}</div>
+            <div className="truncate text-xs text-gray-500">
+              {customerTypeLabels[customer.type]} · {customerStatusLabels[customer.status]}
+            </div>
+          </div>
+          <span className="ml-auto shrink-0 whitespace-nowrap text-xs font-medium text-pink-600">
+            满意度 {Math.round(customer.satisfaction)}%
+          </span>
+        </div>
+      </div>
+
       <div className="bg-gray-50 rounded-xl p-3">
         <div className="text-sm text-gray-600">订单内容</div>
         {orderLines.length === 0 ? (
@@ -43,8 +75,8 @@ export function CustomerDetailPanel({ customer }: { customer: Customer }) {
         ) : (
           <div className="mt-2 space-y-1 text-sm">
             {orderLines.map(line => (
-              <div key={line.id} className="flex items-center justify-between">
-                <span className="text-gray-700 truncate">{line.name}</span>
+              <div key={line.id} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 text-gray-700 truncate">{line.name}</span>
                 <span className="text-gray-500">×{line.quantity}</span>
               </div>
             ))}
@@ -56,11 +88,11 @@ export function CustomerDetailPanel({ customer }: { customer: Customer }) {
         )}
       </div>
 
-      <div className="flex gap-2">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2">
         <Button
           variant={canServeNow ? 'primary' : 'secondary'}
           disabled={!canServeNow}
-          className="flex-1"
+          className="w-full"
           onClick={() => {
             if (!canServeNow) return;
             const maid = availableMaids[0];
@@ -71,7 +103,7 @@ export function CustomerDetailPanel({ customer }: { customer: Customer }) {
         </Button>
         <Button
           variant="secondary"
-          className="flex-1"
+          className="w-full"
           onClick={() => dispatch({ type: 'SELECT_CUSTOMER', customerId: null })}
         >
           取消选择
