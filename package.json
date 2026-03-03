@@ -1,11 +1,14 @@
 {
   "name": "rosemary-maidcafe",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": true,
   "scripts": {
     "gen:maid-manifest": "node scripts/generate-maid-image-manifest.mjs",
+    "next:dev:ensure": "node scripts/ensure-next-dev.mjs",
     "next:dev": "npm run gen:maid-manifest && next dev src-next --port 3527",
     "next:build": "npm run gen:maid-manifest && next build src-next",
+    "release": "node scripts/release.mjs",
+    "release:dry-run": "node scripts/release.mjs patch --dry-run",
     "dev": "tauri dev",
     "build:desktop": "tauri build",
     "tauri": "tauri",
