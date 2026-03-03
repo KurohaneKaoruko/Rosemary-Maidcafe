@@ -66,9 +66,9 @@ export function AchievementPanel() {
   };
 
   return (
-    <div className="min-h-full flex min-w-0 flex-col gap-3 px-0 py-3 sm:gap-4 sm:py-4">
+    <div className="min-h-full flex min-w-0 flex-col gap-3 p-3 sm:gap-4 sm:p-4">
       {/* Top Meta: title comes from floating window frame */}
-      <div className="flex items-center justify-end px-0">
+      <div className="flex items-center justify-end">
         <div className="text-xs text-gray-500 sm:text-sm">
           已解锁 {unlockedCount} / {totalCount}
         </div>
@@ -124,7 +124,7 @@ export function AchievementPanel() {
       </div>
 
       {/* Achievements List */}
-      <div className="flex-1 min-h-0 overflow-auto space-y-4">
+      <div className="flex-1 min-h-0 overflow-auto pr-1 space-y-4">
         {Object.entries(groupedAchievements).map(([type, typeAchievements]) => (
           <Card key={type}>
             <CardHeader>

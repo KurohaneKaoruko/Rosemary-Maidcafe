@@ -140,7 +140,6 @@ export function useDisplaySettings(): DisplaySettingsHookResult {
   const [resolutionId, setResolutionId] = useState<string>(DEFAULT_SETTINGS.resolutionId);
   const [isApplying, setIsApplying] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -154,27 +153,7 @@ export function useDisplaySettings(): DisplaySettingsHookResult {
 
     setMode(initial.mode);
     setResolutionId(initial.resolutionId);
-    setInitialized(true);
   }, []);
-
-  useEffect(() => {
-    if (!initialized) {
-      return;
-    }
-
-    const settings: DisplaySettings = { mode, resolutionId };
-    void (async () => {
-      try {
-        if (isDesktop) {
-          await applyTauriDisplaySettings(settings);
-        } else {
-          await applyBrowserDisplaySettings(settings);
-        }
-      } catch {
-        // Ignore startup apply failures. User can re-apply from settings.
-      }
-    })();
-  }, [initialized, isDesktop, mode, resolutionId]);
 
   const applySettings = useCallback(
     async (nextSettings: DisplaySettings): Promise<boolean> => {
@@ -182,6 +161,14 @@ export function useDisplaySettings(): DisplaySettingsHookResult {
         mode: nextSettings.mode === 'fullscreen' ? 'fullscreen' : 'windowed',
         resolutionId: getResolutionById(nextSettings.resolutionId).id,
       };
+
+      // Avoid touching window state when settings are unchanged.
+      if (
+        normalizedSettings.mode === mode &&
+        normalizedSettings.resolutionId === resolutionId
+      ) {
+        return true;
+      }
 
       setIsApplying(true);
       setLastError(null);
@@ -208,7 +195,7 @@ export function useDisplaySettings(): DisplaySettingsHookResult {
         setIsApplying(false);
       }
     },
-    [isDesktop]
+    [isDesktop, mode, resolutionId]
   );
 
   const resolution = useMemo(() => getResolutionById(resolutionId), [resolutionId]);

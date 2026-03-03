@@ -18,6 +18,7 @@ import { defaultMenuItems } from '@/data/menuItems';
 import { createInitialTasks } from '@/data/tasks';
 import { DEFAULT_STAFFING_STATE } from '@/data/staffing';
 import { isTauriDesktop } from '@/utils/platform';
+import { normalizeReputation } from '@/utils/formatters';
 import { createDefaultMaidSkills, normalizeMaidState } from '@/systems/maidSystem';
 import { normalizeStaffingState } from '@/systems/staffingSystem';
 
@@ -318,6 +319,7 @@ function normalizeLoadedState(state: GameState): GameState {
         })
       : [],
     notifications: Array.isArray(state.notifications) ? state.notifications : [],
+    reputation: normalizeReputation(state.reputation),
     selectedMaidId: state.selectedMaidId ?? null,
     selectedCustomerId: state.selectedCustomerId ?? null,
     desktopUI: normalizeDesktopUI(state),
@@ -331,6 +333,7 @@ function normalizeLoadedState(state: GameState): GameState {
 function prepareStateForSave(state: GameState): GameState {
   return {
     ...state,
+    reputation: normalizeReputation(state.reputation),
     runtime: { ...RUNTIME_DEFAULTS },
     notifications: [],
     selectedMaidId: null,
@@ -576,7 +579,7 @@ function buildCompactSaveData(state: GameState): CompactSaveData {
     tasks: deflateTasks(prepared),
     achievements: deflateAchievements(prepared),
     statistics: sanitizeStatistics(prepared.statistics),
-    reputation: getNumber(prepared.reputation, initialGameState.reputation, 0),
+    reputation: normalizeReputation(getNumber(prepared.reputation, initialGameState.reputation, 0)),
     staffing: normalizeStaffingState(prepared.staffing),
   };
 }
@@ -643,7 +646,7 @@ function inflateCompactSaveData(compact: CompactSaveData): GameState {
     achievements: inflateAchievements(Array.isArray(compact.achievements) ? compact.achievements : []),
     statistics: sanitizeStatistics(compact.statistics),
     tasks: inflateTasks(Array.isArray(compact.tasks) ? compact.tasks : [], day),
-    reputation: getNumber(compact.reputation, fallback.reputation, 0),
+    reputation: normalizeReputation(getNumber(compact.reputation, fallback.reputation, 0)),
     selectedMaidId: null,
     selectedCustomerId: null,
     activePanel: 'cafe',

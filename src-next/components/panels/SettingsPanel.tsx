@@ -7,6 +7,7 @@ import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { deleteSave, saveGame } from '@/utils/storage';
+import { formatReputation } from '@/utils/formatters';
 import { DisplayMode, useDisplaySettings } from '@/hooks/useDisplaySettings';
 
 export function SettingsPanel() {
@@ -179,7 +180,7 @@ export function SettingsPanel() {
             </div>
             <div className="bg-purple-50 rounded-lg p-3">
               <div className="text-gray-500">声望</div>
-              <div className="text-xl font-bold text-purple-600">{state.reputation}</div>
+              <div className="text-xl font-bold text-purple-600">{formatReputation(state.reputation)}</div>
             </div>
             <div className="bg-yellow-50 rounded-lg p-3">
               <div className="text-gray-500">金币</div>

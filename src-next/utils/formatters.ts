@@ -181,6 +181,27 @@ export function formatNumber(value: number): string {
 }
 
 /**
+ * Normalize reputation value to avoid floating-point drift.
+ * Reputation is clamped to [0, 100] and kept at 1 decimal precision.
+ */
+export function normalizeReputation(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const clamped = Math.min(Math.max(value, 0), 100);
+  return Math.round((clamped + Number.EPSILON) * 10) / 10;
+}
+
+/**
+ * Format reputation for UI display.
+ * Integer values are shown without decimals; otherwise keep 1 decimal.
+ */
+export function formatReputation(value: number): string {
+  const normalized = normalizeReputation(value);
+  return Number.isInteger(normalized) ? `${normalized}` : normalized.toFixed(1);
+}
+
+/**
  * 格式化等级
  * @param level 等级
  * @returns 格式化的等级字符串 (如 "Lv.5")

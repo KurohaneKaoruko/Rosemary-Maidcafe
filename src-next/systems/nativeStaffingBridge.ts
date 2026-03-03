@@ -37,6 +37,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
 }
 
+function sanitizeNonNegativeNumber(value: unknown, fallback = 0): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(0, Number(value));
+}
+
 function isNativeStaffingPatch(value: unknown): value is NativeStaffingPatch {
   if (!isRecord(value)) {
     return false;
@@ -82,7 +89,7 @@ function buildNativeInput(state: GameState, deltaMinutes: number): NativeStaffin
     deltaMinutes,
     waitingCount,
     baseSpawnIntervalMs: getSpawnInterval(state.reputation, state.facility.cafeLevel),
-    customerSpawnMs: state.runtime.customerSpawnMs ?? 0,
+    customerSpawnMs: sanitizeNonNegativeNumber(state.runtime.customerSpawnMs),
     customerStatusTicks: state.runtime.customerStatusTicks ?? {},
     customerStreak: state.runtime.customerStreak ?? 0,
     maxSeats: state.facility.maxSeats,

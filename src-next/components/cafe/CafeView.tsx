@@ -106,9 +106,14 @@ export function CafeView() {
       )}
       
       {isPaused && isBusinessHours && (
-        <div className={`bg-yellow-50 rounded-xl p-3 text-center ${isLandscape ? 'p-2 text-sm' : ''}`}>
-          <span className="text-yellow-700">
-            ⏸️ 游戏已暂停
+        <div className="flex justify-center sm:justify-start">
+          <span
+            className={`inline-flex items-center gap-1 rounded-full border border-yellow-200 bg-yellow-50 text-yellow-700 ${
+              isLandscape ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'
+            }`}
+          >
+            <span aria-hidden>⏸</span>
+            <span>已暂停</span>
           </span>
         </div>
       )}
