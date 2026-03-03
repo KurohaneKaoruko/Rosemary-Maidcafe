@@ -42,7 +42,7 @@
   },
   "productName": "Rosemary MaidCafe",
   "mainBinaryName": "rosemary-maidcafe",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "identifier": "com.rosemary.maidcafe",
   "plugins": {},
   "app": {
