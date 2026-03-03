@@ -13,10 +13,19 @@ export type TaskEvent =
   | { type: 'total_revenue'; amount: number }
   | { type: 'total_customers'; amount: number };
 
+export function removeDailyTasks(tasks: Task[]): Task[] {
+  if (!tasks.some((task) => task.type === 'daily')) {
+    return tasks;
+  }
+  return tasks.filter((task) => task.type === 'growth');
+}
+
 export function refreshDailyTasks(existing: Task[], day: number): Task[] {
-  const growthTasks = existing.filter(t => t.type === 'growth');
-  const fresh = createInitialTasks(day).filter(t => t.type === 'daily');
-  return [...fresh, ...growthTasks];
+  const growthTasks = removeDailyTasks(existing);
+  if (growthTasks.length > 0) {
+    return growthTasks;
+  }
+  return createInitialTasks(day).filter((task) => task.type === 'growth');
 }
 
 export function applyTaskEvent(tasks: Task[], event: TaskEvent): Task[] {
@@ -74,7 +83,7 @@ function checkEventMatch(
 
 export function claimTaskReward(tasks: Task[], taskId: string): { tasks: Task[]; reward: TaskReward | null } {
   const task = tasks.find(t => t.id === taskId);
-  if (!task || !task.completed || task.claimed) {
+  if (!task || task.type === 'daily' || !task.completed || task.claimed) {
     return { tasks, reward: null };
   }
 

@@ -30,6 +30,13 @@ const RUNTIME_DEFAULTS = {
   customerStatusTicks: {},
   customersServedToday: 0,
   customerStreak: 0,
+  operationCooldowns: {
+    attractCustomersMs: 0,
+    comfortGuestsMs: 0,
+    serviceRushMs: 0,
+    superviseServiceMs: 0,
+    motivateMaidMs: 0,
+  },
   nativeStaffingPrimed: false,
   nativeStaffingFrame: null,
 };
@@ -288,6 +295,7 @@ function normalizeDesktopUI(state: Partial<GameState>): DesktopUIState {
 
 function normalizeLoadedState(state: GameState): GameState {
   const normalizedStaffing = normalizeStaffingState(state.staffing ?? DEFAULT_STAFFING_STATE);
+  const operationCooldowns = state.runtime?.operationCooldowns;
 
   return {
     ...state,
@@ -297,11 +305,35 @@ function normalizeLoadedState(state: GameState): GameState {
           customerStatusTicks: state.runtime.customerStatusTicks ?? {},
           customersServedToday: state.runtime.customersServedToday ?? 0,
           customerStreak: state.runtime.customerStreak ?? 0,
+          operationCooldowns: {
+            attractCustomersMs:
+              typeof operationCooldowns?.attractCustomersMs === 'number' && Number.isFinite(operationCooldowns.attractCustomersMs)
+                ? Math.max(0, operationCooldowns.attractCustomersMs)
+                : 0,
+            comfortGuestsMs:
+              typeof operationCooldowns?.comfortGuestsMs === 'number' && Number.isFinite(operationCooldowns.comfortGuestsMs)
+                ? Math.max(0, operationCooldowns.comfortGuestsMs)
+                : 0,
+            serviceRushMs:
+              typeof operationCooldowns?.serviceRushMs === 'number' && Number.isFinite(operationCooldowns.serviceRushMs)
+                ? Math.max(0, operationCooldowns.serviceRushMs)
+                : 0,
+            superviseServiceMs:
+              typeof operationCooldowns?.superviseServiceMs === 'number' && Number.isFinite(operationCooldowns.superviseServiceMs)
+                ? Math.max(0, operationCooldowns.superviseServiceMs)
+                : 0,
+            motivateMaidMs:
+              typeof operationCooldowns?.motivateMaidMs === 'number' && Number.isFinite(operationCooldowns.motivateMaidMs)
+                ? Math.max(0, operationCooldowns.motivateMaidMs)
+                : 0,
+          },
           nativeStaffingPrimed: false,
           nativeStaffingFrame: null,
         }
       : { ...RUNTIME_DEFAULTS },
-    tasks: Array.isArray(state.tasks) ? state.tasks : initialGameState.tasks,
+    tasks: Array.isArray(state.tasks)
+      ? state.tasks.filter((task) => task.type === 'growth')
+      : initialGameState.tasks,
     maids: Array.isArray(state.maids)
       ? state.maids.map((maid) => {
           const normalized = normalizeMaidState({

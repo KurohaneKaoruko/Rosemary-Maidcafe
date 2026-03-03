@@ -115,7 +115,7 @@ export function GameUI() {
   };
 
   return (
-    <div className={`h-screen flex flex-col bg-white ${desktopFloatingMode ? 'desktop-app-shell' : ''}`}>
+    <div className={`h-screen overflow-hidden flex flex-col bg-white ${desktopFloatingMode ? 'desktop-app-shell' : ''}`}>
       <DesktopTitlebar />
 
       {/* Top Bar - Requirements: 9.2 */}
@@ -125,11 +125,11 @@ export function GameUI() {
       {!desktopFloatingMode && <Navigation />}
       
       {/* Main Content Area with Side Navigation for Landscape - Requirements: 8.3, 9.1 */}
-      <div className={`flex-1 flex ${desktopFloatingMode ? 'desktop-workbench overflow-visible' : 'overflow-hidden'}`}>
+      <div className={`flex-1 min-h-0 flex ${desktopFloatingMode ? 'desktop-workbench overflow-visible' : 'overflow-hidden'}`}>
         {desktopFloatingMode ? (
           <>
             <DesktopDock />
-            <main className="relative flex-1 overflow-visible">
+            <main className="relative flex-1 min-h-0 overflow-visible">
               <div className="desktop-stage-shell">{renderActivePanel()}</div>
               <FloatingWindowsLayer enabled={desktopFloatingMode} />
             </main>
@@ -140,7 +140,7 @@ export function GameUI() {
             <NavigationSide />
             
             {/* Main Content */}
-            <main className="relative flex-1 overflow-auto pb-16 sm:pb-0">
+            <main className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-16 sm:pb-0">
               {renderActivePanel()}
               <FloatingWindowsLayer enabled={desktopFloatingMode} />
             </main>

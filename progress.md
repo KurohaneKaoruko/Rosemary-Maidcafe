@@ -1,0 +1,103 @@
+Original prompt: 修复一直没客人的bug
+
+- Investigated customer spawn path: `GameLoop` -> `TICK` -> `gameReducer` spawn section.
+- Identified brittle points where invalid numeric values (`NaN`/negative) can freeze spawn progression (`customerSpawnMs`, `spawnIntervalMs`, native `nextSpawnMs`).
+- Added reducer-side sanitization and native->TS fallback spawn guard.
+- Added native bridge input sanitization so invalid runtime counters are not sent to Rust tick simulation.
+- Could not run Playwright verification loop because the `playwright` package is unavailable in this environment (`ERR_MODULE_NOT_FOUND`).
+- `npm run next:dev` can now generate maid manifest, but port `3527` is already in use in current session.
+- TODO: install `playwright` (or provide local dependency) and run `$WEB_GAME_CLIENT` against active dev server to verify customer spawn in UI.
+- TODO: if spawn issue persists on native path, inspect Rust `simulate_staffing_tick` output for `spawnPlan.nextSpawnMs`/`spawnCount`.
+- Investigated day-end lock issue: load path forced `dailySummaryOpen=false` even when `isBusinessHours=false`, causing no path to `START_NEW_DAY`.
+- Fix: in reducer `LOAD_GAME`, restore day summary when loading a closed-business state; also keep summary from being closed while business is closed.
+- Root cause for "no customers forever" in Tauri mode: reducer overwrote locally accumulated `customerSpawnMs` with stale native `spawnPlan.nextSpawnMs`, often resetting progress to 0 each tick.
+- Fix: spawn timing is now always driven by reducer-local accumulated `spawnMs`; native output only supplies optional `spawnCandidates` payloads.
+- Fixed reputation floating-point drift (e.g. 56.000000000000014) by normalizing reputation writes to 1 decimal precision.
+- Added `normalizeReputation` / `formatReputation` in `utils/formatters.ts`.
+- Applied normalization in reducer reputation update paths (service rewards, penalties, incidents, task rewards).
+- Applied normalization in save/load pipeline so existing saves with drift are cleaned on load/save.
+- Updated UI displays (TopBar, SettingsPanel, SaveLoadModal) to use formatted reputation output.
+- TODO: run full UI/playwright verification once local Playwright dependency is available.
+- Fixed AchievementPanel edge-to-edge layout in floating window: restored panel padding (`p-3 sm:p-4`), removed redundant `px-0`, and added small right buffer on scroll list (`pr-1`).
+- Added release script `scripts/release.mjs` to bump version across package.json/package-lock/tauri.conf/Cargo.toml.
+- Supports explicit semver and major/minor/patch bump plus optional `--commit`, `--tag`, `--push`, `--dry-run`.
+- Added npm commands: `release` and `release:dry-run`.
+- Added README section documenting release usage and how it ties to `v*` workflow trigger.
+- Released v0.0.1: bumped package/lock/tauri/cargo versions, committed as `chore(release): v0.0.1`, created and pushed tag `v0.0.1` to origin.
+
+- Updated desktop UI behavior: reverted panel floating windows (`tasks`/`achievements`/`finance`/`settings`) to main-stage rendering by clearing `PANEL_FLOATING_WINDOW_IDS` in `src-next/data/desktopUI.ts`.
+- Limited floating window runtime/storage normalization list to detail overlays only (maidDetail, customerDetail) so panel windows no longer pop up from saved state.
+- Added guard in DesktopWindowToolbar to hide itself when there are no panel floating-window items.
+- Validation notes:
+- `npm run next:build` failed because `scripts/generate-maid-image-manifest.mjs` could not write `src-next/assets/maid-image/index.ts` (`EPERM`).
+- Direct Next build (`node node_modules/next/dist/bin/next build src-next`) failed because `.next/trace` could not be written (`EPERM`).
+- `web_game_playwright_client.js` still cannot run in this environment due missing `playwright` package (`ERR_MODULE_NOT_FOUND`).
+
+- Updated maid list layout in `MaidPanel`: changed list grid to `grid-cols-1 md:grid-cols-2 xl:grid-cols-3` so each row shows at most 3 maids.
+- Fixed finance trend chart rendering bug where bars collapsed into thin lines:
+- Root cause: percentage bar heights were inside flex children without a resolved full-height chain, so CSS height percentages were ineffective and only `minHeight` remained visible.
+- Fix: changed chart row alignment to `items-stretch` and updated `DayBar` wrappers to use explicit `h-full`/`min-h-0` so percent heights render correctly.
+- Added finance history numeric sanitization before charting (day/revenue/expenses/profit) to avoid NaN/invalid saved data breaking bar height calculations.
+- Verification attempt: `web_game_playwright_client.js --help` still fails due missing `playwright` package (`ERR_MODULE_NOT_FOUND`), so automated screenshot/state-loop validation remains blocked.
+
+- Economy pacing rebalance (requested: game progression too fast):
+- Removed daily tasks from `src-next/data/tasks.ts`; only growth tasks remain.
+- Reduced growth task gold rewards by about 30% to 35%.
+- Updated task system guards (`src-next/systems/taskSystem.ts`) so legacy daily tasks are filtered out and cannot be claimed.
+- Added daily-task filtering in load paths (`src-next/utils/storage.ts` and `LOAD_GAME` in `src-next/systems/gameReducer.ts`) to sanitize older saves.
+- Updated `TaskPanel` to display growth tasks only.
+- Reduced per-service income in web simulation (`src-next/systems/customerSystem.ts`): order gold x0.8, tip x0.75, VIP bonus lowered to x1.12.
+- Slowed customer generation slightly (`getSpawnInterval` base 30s -> 34s; min 10s -> 12s).
+- Increased progression costs (`src-next/systems/facilitySystem.ts`): cafe upgrade cost curve and area unlock costs raised significantly.
+- Increased daily operating costs (`src-next/systems/financeSystem.ts`): rent/utilities/wages raised.
+- Synced service-reward multipliers in native Tauri simulation (`src-tauri/src/staffing_sim.rs`) to keep web/native behavior aligned.
+- Synced finance detail panel breakdown constants (`src-next/components/panels/FinancePanel.tsx`) with new operating-cost formula to avoid UI mismatch.
+- Validation: `cargo check --manifest-path src-tauri/Cargo.toml` passed.
+- Validation limitation: TypeScript check still fails on existing test-environment issues (`vitest` missing globals/deps), unrelated to this rebalance patch set.
+
+- Gameplay depth update (requested: add more operation to avoid pure click-upgrade loop):
+- Added active in-run operation actions (`USE_CAFE_OPERATION`) with cooldown + cost + tactical tradeoff:
+  - `attract_customers`: spend gold to immediately pull in 1 seated customer when seat is available.
+  - `comfort_guests`: spend gold to recover patience / slight satisfaction for current guests.
+  - `service_rush`: spend gold to apply temporary service-efficiency boost; increases fatigue and lowers mood.
+- Added runtime operation cooldown state (`operationCooldowns`) to `GameRuntime` and wired it into:
+  - initial state defaults
+  - reducer tick cooldown decay
+  - new-day reset
+  - save/load normalization for old saves
+- Added a new "运营指令" card in `CafeView` main window (non-modal) with 3 operation buttons, live cooldown/cost/status hints, and queue pressure display.
+- Validation:
+  - TypeScript check still fails only on pre-existing Vitest environment/type issues; no new reducer/component type errors from this patch.
+  - Playwright client remains blocked by missing dependency (`ERR_MODULE_NOT_FOUND: playwright`).
+- TODO: if Playwright dependency is provided, run full action-burst + screenshot verification for the new operation buttons and state feedback.
+- Continued gameplay depth expansion (manual operations layer):
+- Added new reducer actions:
+  - `MANUAL_ASSIGN_SERVICE`: manually dispatch selected maid to selected seated customer (with small patience/satisfaction boost).
+  - `SUPERVISE_SERVICE`: paid command to boost selected waiting-order customer service progress, with cooldown.
+  - `MOTIVATE_MAID`: paid command to boost selected maid mood/stamina, with cooldown; if currently serving, also pushes service progress.
+- Extended runtime operation cooldown state with:
+  - `superviseServiceMs`
+  - `motivateMaidMs`
+  and wired into defaults + tick decay + save/load normalization.
+- Added new "手动调度" card in `CafeView` main window:
+  - shows selected maid/customer context
+  - three actionable buttons (派单/督导/鼓舞)
+  - per-action availability hints and cooldown display.
+- Validation rerun: TS check still fails only due existing Vitest setup/dependency issues; no new typing errors from this continuation.
+- Installed Playwright in project devDependencies (`playwright@1.58.2`) via npm.
+- Installed Chromium runtime with `npx playwright install chromium` (plus ffmpeg/headless shell dependencies).
+- Verified with `npx playwright --version` and dynamic import check (`playwright-import-ok`).
+- Note: external skill script under `C:\Users\Kurohanekaoruko\.codex\skills\...` still resolves modules relative to its own location; prefer running Playwright commands from project context.
+- Continued after Playwright install:
+- Added QoL auto-targeting in `CafeView` manual dispatch controls:
+  - manual assign auto-falls back to first available idle maid + seated customer when not explicitly selected.
+  - supervise auto-falls back to first waiting-order customer.
+  - motivate auto-falls back to first active maid.
+- Updated hints to explain auto-target behavior (instead of requiring manual selection every time).
+- Playwright validation executed successfully against local dev server (headless Chromium):
+  - no console errors detected.
+  - operation buttons are rendered and state transitions/cooldowns visible.
+  - screenshots generated under `artifacts/playwright/step1-home.png`, `step2-operations.png`, `step3-manual-dispatch.png`.
+- Environment status:
+  - Playwright dependency + Chromium runtime installed and usable.
+  - Dev server startup in this environment is most reliable via hidden-window launch under escalated execution.

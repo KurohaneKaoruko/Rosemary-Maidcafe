@@ -16,7 +16,12 @@ import {
 import { checkAchievements } from '@/systems/achievementSystem';
 import { calculateRewards, calculateSatisfaction, completeService, generateCustomer, generateOrder, getSpawnInterval, handlePatienceTimeout, shouldCustomerLeave, startCustomerService, updateCustomerServiceProgress, updatePatience } from '@/systems/customerSystem';
 import { calculateDailyOperatingCost } from '@/systems/financeSystem';
-import { applyTaskEvent, claimTaskReward, refreshDailyTasks } from '@/systems/taskSystem';
+import {
+  applyTaskEvent,
+  claimTaskReward,
+  refreshDailyTasks,
+  removeDailyTasks,
+} from '@/systems/taskSystem';
 import { getAreaUnlockCost, getCafeUpgradeCost, getEquipmentUpgradeCost } from '@/systems/facilitySystem';
 import {
   applyServiceComboToRewards,
@@ -58,6 +63,82 @@ function isCustomerStatus(value: unknown): value is GameState['customers'][numbe
     value === 'paying' ||
     value === 'leaving'
   );
+}
+
+const DEFAULT_OPERATION_COOLDOWNS: GameState['runtime']['operationCooldowns'] = {
+  attractCustomersMs: 0,
+  comfortGuestsMs: 0,
+  serviceRushMs: 0,
+  superviseServiceMs: 0,
+  motivateMaidMs: 0,
+};
+
+const OPERATION_COSTS = {
+  attract_customers: 120,
+  comfort_guests: 80,
+  service_rush: 100,
+} as const;
+
+const OPERATION_COOLDOWN_MS = {
+  attract_customers: 45_000,
+  comfort_guests: 30_000,
+  service_rush: 60_000,
+} as const;
+
+const COMMAND_COSTS = {
+  supervise_service: 35,
+  motivate_maid: 55,
+} as const;
+
+const COMMAND_COOLDOWN_MS = {
+  supervise_service: 15_000,
+  motivate_maid: 20_000,
+} as const;
+
+function normalizeOperationCooldowns(
+  cooldowns: GameState['runtime']['operationCooldowns'] | null | undefined
+): GameState['runtime']['operationCooldowns'] {
+  return {
+    attractCustomersMs: sanitizeNonNegativeNumber(cooldowns?.attractCustomersMs),
+    comfortGuestsMs: sanitizeNonNegativeNumber(cooldowns?.comfortGuestsMs),
+    serviceRushMs: sanitizeNonNegativeNumber(cooldowns?.serviceRushMs),
+    superviseServiceMs: sanitizeNonNegativeNumber(cooldowns?.superviseServiceMs),
+    motivateMaidMs: sanitizeNonNegativeNumber(cooldowns?.motivateMaidMs),
+  };
+}
+
+function reduceOperationCooldowns(
+  cooldowns: GameState['runtime']['operationCooldowns'],
+  deltaMs: number
+): GameState['runtime']['operationCooldowns'] {
+  if (deltaMs <= 0) {
+    return cooldowns;
+  }
+
+  return {
+    attractCustomersMs: Math.max(0, cooldowns.attractCustomersMs - deltaMs),
+    comfortGuestsMs: Math.max(0, cooldowns.comfortGuestsMs - deltaMs),
+    serviceRushMs: Math.max(0, cooldowns.serviceRushMs - deltaMs),
+    superviseServiceMs: Math.max(0, cooldowns.superviseServiceMs - deltaMs),
+    motivateMaidMs: Math.max(0, cooldowns.motivateMaidMs - deltaMs),
+  };
+}
+
+function findNextAvailableSeatId(customers: GameState['customers'], maxSeats: number): string | null {
+  const occupiedSeats = new Set(
+    customers
+      .filter((customer) => customer.status !== 'waiting_seat' && Boolean(customer.seatId))
+      .map((customer) => customer.seatId)
+  );
+
+  for (let i = 1; i <= maxSeats; i += 1) {
+    const seatId = `seat-${i}`;
+    if (!occupiedSeats.has(seatId)) {
+      return seatId;
+    }
+  }
+
+  return null;
 }
 
 function getComboTierLabel(tier: number): string {
@@ -118,10 +199,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
 
       const deltaMinutes = GAME_CONSTANTS.TIME_INCREMENT;
-      const deltaMs = action.deltaTime;
+      const deltaMs = sanitizeNonNegativeNumber(action.deltaTime);
       const currentShift = getCurrentShift(state.time);
       const useNativeStaffing = state.runtime.nativeStaffingPrimed === true;
       const nativeFrame = useNativeStaffing ? state.runtime.nativeStaffingFrame ?? null : null;
+      const operationCooldowns = normalizeOperationCooldowns(state.runtime.operationCooldowns);
 
       const nextRuntime = {
         ...state.runtime,
@@ -129,6 +211,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         customerStatusTicks: { ...(state.runtime.customerStatusTicks ?? {}) },
         customersServedToday: state.runtime.customersServedToday ?? 0,
         customerStreak: state.runtime.customerStreak ?? 0,
+        operationCooldowns: reduceOperationCooldowns(operationCooldowns, deltaMs),
         nativeStaffingPrimed: false,
         nativeStaffingFrame: null,
       };
@@ -818,6 +901,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           customerStatusTicks: {},
           customersServedToday: 0,
           customerStreak: 0,
+          operationCooldowns: { ...DEFAULT_OPERATION_COOLDOWNS },
           nativeStaffingPrimed: false,
           nativeStaffingFrame: null,
         },
@@ -1217,6 +1301,383 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     // ==================== 菜单管理 ====================
+    case 'MANUAL_ASSIGN_SERVICE': {
+      if (!state.isBusinessHours || state.isPaused) {
+        return state;
+      }
+
+      const maid = state.maids.find((item) => item.id === action.maidId);
+      const customer = state.customers.find((item) => item.id === action.customerId);
+      if (!maid || !customer || customer.status !== 'seated') {
+        return state;
+      }
+      if (maid.status.isResting || maid.status.isWorking || maid.status.servingCustomerId !== null || maid.stamina < 10) {
+        return state;
+      }
+
+      const nextMaid = startService(maid, customer.id);
+      const nextCustomer = startCustomerService(
+        {
+          ...customer,
+          patience: clamp(customer.patience + 8, 0, 100),
+          satisfaction: clamp(customer.satisfaction + 2, 0, 100),
+        },
+        maid.id
+      );
+
+      return {
+        ...state,
+        maids: state.maids.map((item) => (item.id === maid.id ? nextMaid : item)),
+        customers: state.customers.map((item) => (item.id === customer.id ? nextCustomer : item)),
+        notifications: [
+          ...state.notifications,
+          {
+            id: `manual_assign_${maid.id}_${customer.id}_${Date.now()}`,
+            type: 'success' as const,
+            message: `🎯 ${maid.name} 已被手动派单给 ${customer.name}`,
+            timestamp: Date.now(),
+          },
+        ].slice(-50),
+      };
+    }
+
+    case 'SUPERVISE_SERVICE': {
+      if (!state.isBusinessHours || state.isPaused) {
+        return state;
+      }
+
+      const operationCooldowns = normalizeOperationCooldowns(state.runtime.operationCooldowns);
+      const cost = COMMAND_COSTS.supervise_service;
+      if (operationCooldowns.superviseServiceMs > 0 || state.finance.gold < cost) {
+        return state;
+      }
+
+      const customer = state.customers.find((item) => item.id === action.customerId);
+      if (!customer || customer.status !== 'waiting_order' || customer.serviceProgress === undefined) {
+        return state;
+      }
+
+      const boostedProgress = clamp(customer.serviceProgress + 30, 0, 100);
+      return {
+        ...state,
+        customers: state.customers.map((item) =>
+          item.id === customer.id
+            ? {
+                ...item,
+                serviceProgress: boostedProgress,
+                patience: clamp(item.patience + 10, 0, 100),
+                satisfaction: clamp(item.satisfaction + 3, 0, 100),
+              }
+            : item
+        ),
+        finance: {
+          ...state.finance,
+          gold: state.finance.gold - cost,
+          dailyExpenses: state.finance.dailyExpenses + cost,
+        },
+        runtime: {
+          ...state.runtime,
+          operationCooldowns: {
+            ...operationCooldowns,
+            superviseServiceMs: COMMAND_COOLDOWN_MS.supervise_service,
+          },
+        },
+        notifications: [
+          ...state.notifications,
+          {
+            id: `supervise_service_${customer.id}_${Date.now()}`,
+            type: 'success' as const,
+            message: `🧭 督导完成，${customer.name} 的服务进度已推进`,
+            timestamp: Date.now(),
+          },
+        ].slice(-50),
+      };
+    }
+
+    case 'MOTIVATE_MAID': {
+      if (!state.isBusinessHours || state.isPaused) {
+        return state;
+      }
+
+      const operationCooldowns = normalizeOperationCooldowns(state.runtime.operationCooldowns);
+      const cost = COMMAND_COSTS.motivate_maid;
+      if (operationCooldowns.motivateMaidMs > 0 || state.finance.gold < cost) {
+        return state;
+      }
+
+      const maid = state.maids.find((item) => item.id === action.maidId);
+      if (!maid || maid.status.isResting) {
+        return state;
+      }
+
+      const servingCustomerId = maid.status.servingCustomerId;
+      return {
+        ...state,
+        maids: state.maids.map((item) =>
+          item.id === maid.id
+            ? {
+                ...item,
+                mood: clamp(item.mood + 16, 0, 100),
+                stamina: clamp(item.stamina + 10, 0, 100),
+                fatigue: clamp(item.fatigue + 4, 0, 100),
+              }
+            : item
+        ),
+        customers: state.customers.map((item) =>
+          servingCustomerId && item.id === servingCustomerId && item.serviceProgress !== undefined
+            ? {
+                ...item,
+                serviceProgress: clamp(item.serviceProgress + 15, 0, 100),
+              }
+            : item
+        ),
+        finance: {
+          ...state.finance,
+          gold: state.finance.gold - cost,
+          dailyExpenses: state.finance.dailyExpenses + cost,
+        },
+        runtime: {
+          ...state.runtime,
+          operationCooldowns: {
+            ...operationCooldowns,
+            motivateMaidMs: COMMAND_COOLDOWN_MS.motivate_maid,
+          },
+        },
+        notifications: [
+          ...state.notifications,
+          {
+            id: `motivate_maid_${maid.id}_${Date.now()}`,
+            type: 'success' as const,
+            message: `📣 已鼓舞 ${maid.name}，状态提升`,
+            timestamp: Date.now(),
+          },
+        ].slice(-50),
+      };
+    }
+
+    case 'USE_CAFE_OPERATION': {
+      if (!state.isBusinessHours || state.isPaused) {
+        return state;
+      }
+
+      const operationCooldowns = normalizeOperationCooldowns(state.runtime.operationCooldowns);
+      const cost = OPERATION_COSTS[action.operation];
+      const now = Date.now();
+
+      if (state.finance.gold < cost) {
+        return {
+          ...state,
+          notifications: [
+            ...state.notifications,
+            {
+              id: `op_gold_short_${action.operation}_${now}`,
+              type: 'warning' as const,
+              message: '金币不足，无法执行运营操作',
+              timestamp: now,
+            },
+          ].slice(-50),
+        };
+      }
+
+      if (
+        (action.operation === 'attract_customers' && operationCooldowns.attractCustomersMs > 0) ||
+        (action.operation === 'comfort_guests' && operationCooldowns.comfortGuestsMs > 0) ||
+        (action.operation === 'service_rush' && operationCooldowns.serviceRushMs > 0)
+      ) {
+        return state;
+      }
+
+      if (action.operation === 'attract_customers') {
+        const seatId = findNextAvailableSeatId(state.customers, state.facility.maxSeats);
+        if (!seatId) {
+          return {
+            ...state,
+            notifications: [
+              ...state.notifications,
+              {
+                id: `op_no_seat_${now}`,
+                type: 'info' as const,
+                message: '座位已满，当前无法继续揽客',
+                timestamp: now,
+              },
+            ].slice(-50),
+          };
+        }
+
+        const newCustomer = generateCustomer(state.reputation, state.season);
+        const order = generateOrder(newCustomer, state.menuItems, state.season);
+
+        return {
+          ...state,
+          customers: [
+            ...state.customers,
+            {
+              ...newCustomer,
+              order,
+              seatId,
+              status: 'seated',
+            },
+          ],
+          finance: {
+            ...state.finance,
+            gold: state.finance.gold - cost,
+            dailyExpenses: state.finance.dailyExpenses + cost,
+          },
+          runtime: {
+            ...state.runtime,
+            operationCooldowns: {
+              ...operationCooldowns,
+              attractCustomersMs: OPERATION_COOLDOWN_MS.attract_customers,
+            },
+          },
+          notifications: [
+            ...state.notifications,
+            {
+              id: `op_attract_${newCustomer.id}`,
+              type: 'success' as const,
+              message: `📣 揽客成功，${newCustomer.name} 已入座（宣传费 -${cost}）`,
+              timestamp: now,
+            },
+          ].slice(-50),
+        };
+      }
+
+      if (action.operation === 'comfort_guests') {
+        const targetCustomers = state.customers.filter(
+          (customer) =>
+            customer.status === 'seated' ||
+            customer.status === 'ordering' ||
+            customer.status === 'waiting_order' ||
+            customer.status === 'waiting_seat'
+        );
+        if (targetCustomers.length === 0) {
+          return {
+            ...state,
+            notifications: [
+              ...state.notifications,
+              {
+                id: `op_no_guest_${now}`,
+                type: 'info' as const,
+                message: '当前没有可安抚的顾客',
+                timestamp: now,
+              },
+            ].slice(-50),
+          };
+        }
+
+        const targetIds = new Set(targetCustomers.map((customer) => customer.id));
+        return {
+          ...state,
+          customers: state.customers.map((customer) => {
+            if (!targetIds.has(customer.id)) {
+              return customer;
+            }
+
+            const satisfactionBonus =
+              customer.status === 'seated' || customer.status === 'waiting_order' ? 5 : 2;
+            return {
+              ...customer,
+              patience: clamp(customer.patience + 24, 0, 100),
+              satisfaction: clamp(customer.satisfaction + satisfactionBonus, 0, 100),
+            };
+          }),
+          finance: {
+            ...state.finance,
+            gold: state.finance.gold - cost,
+            dailyExpenses: state.finance.dailyExpenses + cost,
+          },
+          reputation: normalizeReputation(state.reputation + 0.3),
+          runtime: {
+            ...state.runtime,
+            operationCooldowns: {
+              ...operationCooldowns,
+              comfortGuestsMs: OPERATION_COOLDOWN_MS.comfort_guests,
+            },
+          },
+          notifications: [
+            ...state.notifications,
+            {
+              id: `op_comfort_${now}`,
+              type: 'success' as const,
+              message: `🍀 已安抚 ${targetCustomers.length} 位顾客，耐心回升（接待费 -${cost}）`,
+              timestamp: now,
+            },
+          ].slice(-50),
+        };
+      }
+
+      const workingMaids = state.maids.filter((maid) => !maid.status.isResting);
+      if (workingMaids.length === 0) {
+        return {
+          ...state,
+          notifications: [
+            ...state.notifications,
+            {
+              id: `op_no_maid_${now}`,
+              type: 'warning' as const,
+              message: '没有在岗女仆，无法执行服务冲刺',
+              timestamp: now,
+            },
+          ].slice(-50),
+        };
+      }
+
+      const currentBoost = state.staffing.activeBoost;
+      const nextBoost = currentBoost
+        ? {
+            ...currentBoost,
+            source: `${currentBoost.source} + 服务冲刺`,
+            remainingMinutes: Math.max(currentBoost.remainingMinutes, 20),
+            serviceEfficiencyMultiplier: clamp(currentBoost.serviceEfficiencyMultiplier * 1.18, 0.7, 1.6),
+            satisfactionBonus: clamp(currentBoost.satisfactionBonus - 4, -20, 20),
+          }
+        : {
+            source: '服务冲刺',
+            remainingMinutes: 20,
+            spawnRateMultiplier: 1,
+            serviceEfficiencyMultiplier: 1.22,
+            satisfactionBonus: -4,
+          };
+
+      return {
+        ...state,
+        maids: state.maids.map((maid) =>
+          maid.status.isResting
+            ? maid
+            : {
+                ...maid,
+                fatigue: clamp(maid.fatigue + 8, 0, 100),
+                mood: clamp(maid.mood - 3, 0, 100),
+              }
+        ),
+        staffing: {
+          ...state.staffing,
+          activeBoost: nextBoost,
+        },
+        finance: {
+          ...state.finance,
+          gold: state.finance.gold - cost,
+          dailyExpenses: state.finance.dailyExpenses + cost,
+        },
+        runtime: {
+          ...state.runtime,
+          operationCooldowns: {
+            ...operationCooldowns,
+            serviceRushMs: OPERATION_COOLDOWN_MS.service_rush,
+          },
+        },
+        notifications: [
+          ...state.notifications,
+          {
+            id: `op_rush_${now}`,
+            type: 'success' as const,
+            message: `⚡ 服务冲刺启动，效率提升 20 分钟（代价：士气下降，运营费 -${cost}）`,
+            timestamp: now,
+          },
+        ].slice(-50),
+      };
+    }
+
     case 'UNLOCK_MENU_ITEM': {
       const menuItem = state.menuItems.find(item => item.id === action.itemId);
       if (!menuItem || menuItem.unlocked) {
@@ -1839,6 +2300,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               customerStatusTicks: action.state.runtime.customerStatusTicks ?? {},
               customersServedToday: action.state.runtime.customersServedToday ?? 0,
               customerStreak: action.state.runtime.customerStreak ?? 0,
+              operationCooldowns: normalizeOperationCooldowns(action.state.runtime.operationCooldowns),
               nativeStaffingPrimed: false,
               nativeStaffingFrame: null,
             }
@@ -1847,6 +2309,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               customerStatusTicks: {},
               customersServedToday: 0,
               customerStreak: 0,
+              operationCooldowns: { ...DEFAULT_OPERATION_COOLDOWNS },
               nativeStaffingPrimed: false,
               nativeStaffingFrame: null,
             },
@@ -1858,7 +2321,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         incidentHistory: Array.isArray(action.state.incidentHistory)
           ? action.state.incidentHistory.slice(-20)
           : [],
-        tasks: Array.isArray(action.state.tasks) ? action.state.tasks : initialGameState.tasks,
+        tasks: Array.isArray(action.state.tasks)
+          ? removeDailyTasks(action.state.tasks)
+          : initialGameState.tasks,
         notifications: Array.isArray(action.state.notifications) ? action.state.notifications : [],
         selectedMaidId: action.state.selectedMaidId ?? null,
         selectedCustomerId: action.state.selectedCustomerId ?? null,

@@ -23,6 +23,9 @@ const STATUS_LEAVING: &str = "leaving";
 
 const INCIDENT_HISTORY_LIMIT: usize = 20;
 const SPAWN_CANDIDATE_MAX: usize = 3;
+const ORDER_GOLD_MULTIPLIER: f64 = 0.8;
+const TIP_GOLD_MULTIPLIER: f64 = 0.75;
+const VIP_BONUS_MULTIPLIER: f64 = 1.12;
 
 const CUSTOMER_FIRST_NAMES: &[&str] = &[
     "小明", "小红", "小华", "小丽", "小强", "小芳", "小军", "小燕",
@@ -1204,8 +1207,11 @@ fn calculate_rewards_from_satisfaction(
     maid: &MaidState,
     satisfaction: f64,
 ) -> (f64, f64, f64, f64) {
-    let mut gold = customer.order.total_price.max(0.0);
-    let tip = calculate_tip(satisfaction, clamp(maid.stats.charm, 1.0, 100.0));
+    let mut gold = (customer.order.total_price.max(0.0) * ORDER_GOLD_MULTIPLIER)
+        .round()
+        .max(0.0);
+    let base_tip = calculate_tip(satisfaction, clamp(maid.stats.charm, 1.0, 100.0));
+    let tip = (base_tip * TIP_GOLD_MULTIPLIER).round().max(0.0);
 
     let reputation = if satisfaction >= 80.0 {
         match customer.customer_type.as_str() {
@@ -1230,7 +1236,7 @@ fn calculate_rewards_from_satisfaction(
     };
 
     if customer.customer_type == "vip" && satisfaction >= 70.0 {
-        gold = (gold * 1.2).round().max(1.0);
+        gold = (gold * VIP_BONUS_MULTIPLIER).round().max(1.0);
     }
 
     let maid_experience = (5.0 + (satisfaction / 100.0) * 20.0).round();
