@@ -4,23 +4,23 @@ import { equipmentUpgradeCostMultiplier } from '@/data/equipment';
 // 咖啡厅升级成本（按等级）
 const CAFE_UPGRADE_COSTS: number[] = [
   0,      // Level 1 (初始)
-  1400,   // Level 1 -> 2
-  2300,   // Level 2 -> 3
-  3600,   // Level 3 -> 4
-  5200,   // Level 4 -> 5
-  7200,   // Level 5 -> 6
-  9600,   // Level 6 -> 7
-  12400,  // Level 7 -> 8
-  15600,  // Level 8 -> 9
-  19200,  // Level 9 -> 10
+  2200,   // Level 1 -> 2
+  3600,   // Level 2 -> 3
+  5600,   // Level 3 -> 4
+  8000,   // Level 4 -> 5
+  11000,  // Level 5 -> 6
+  14800,  // Level 6 -> 7
+  19000,  // Level 7 -> 8
+  23600,  // Level 8 -> 9
+  28800,  // Level 9 -> 10
 ];
 
 // 区域解锁成本
 const AREA_UNLOCK_COSTS: Record<Area, number> = {
   main: 0,           // 主区域免费（初始解锁）
-  outdoor: 2000,     // 户外座位
-  vip_room: 5000,    // VIP包间
-  stage: 8000,       // 舞台
+  outdoor: 3200,     // 户外座位
+  vip_room: 7800,    // VIP包间
+  stage: 12500,      // 舞台
 };
 
 // 最大咖啡厅等级

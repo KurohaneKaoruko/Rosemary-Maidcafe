@@ -62,6 +62,11 @@ const customerPatienceRange: Record<CustomerType, { min: number; max: number }> 
   group: { min: 80, max: 100 },   // 团体顾客耐心较好
 };
 
+// Economy balance tuning: slow down gold growth and progression.
+const ORDER_GOLD_MULTIPLIER = 0.8;
+const TIP_GOLD_MULTIPLIER = 0.75;
+const VIP_BONUS_MULTIPLIER = 1.12;
+
 /**
  * 根据权重随机选择顾客类型
  * Requirements: 3.2
@@ -385,8 +390,8 @@ export function getSpawnInterval(reputation: number, cafeLevel: number): number 
   const normalizedReputation = clamp(reputation, 0, 100);
   const normalizedLevel = clamp(cafeLevel, 1, 10);
 
-  // 基础间隔 30秒 (30000毫秒)
-  const baseInterval = 30000;
+  // 基础间隔 34秒 (34000毫秒)
+  const baseInterval = 34000;
   
   // 声望降低间隔 (声望100时减少50%)
   const reputationModifier = 1 - (normalizedReputation / 100) * 0.5;
@@ -394,8 +399,8 @@ export function getSpawnInterval(reputation: number, cafeLevel: number): number 
   // 咖啡厅等级降低间隔 (等级10时减少30%)
   const levelModifier = 1 - ((normalizedLevel - 1) / 9) * 0.3;
   
-  // 最终间隔，最低10秒
-  const interval = Math.max(baseInterval * reputationModifier * levelModifier, 10000);
+  // 最终间隔，最低12秒
+  const interval = Math.max(baseInterval * reputationModifier * levelModifier, 12000);
   
   return Math.round(interval);
 }
@@ -462,11 +467,12 @@ export function calculateRewards(customer: Customer, maid: Maid): {
 
   const { satisfaction, order, type } = customer;
   
-  // 基础金币 = 订单总价
-  let gold = order.totalPrice;
+  // 基础金币 = 订单总价 * 收益倍率（降低整体金币增长速度）
+  let gold = Math.max(0, Math.round(order.totalPrice * ORDER_GOLD_MULTIPLIER));
   
-  // 计算小费
-  const tip = calculateTip(satisfaction, clamp(maid.stats?.charm ?? 50, 1, 100));
+  // 计算小费（同样应用收益倍率）
+  const baseTip = calculateTip(satisfaction, clamp(maid.stats?.charm ?? 50, 1, 100));
+  const tip = Math.max(0, Math.round(baseTip * TIP_GOLD_MULTIPLIER));
   
   // 计算声望变化
   let reputation = 0;
@@ -480,7 +486,7 @@ export function calculateRewards(customer: Customer, maid: Maid): {
   
   // VIP顾客额外奖励
   if (type === 'vip' && satisfaction >= 70) {
-    gold = Math.max(1, Math.round(gold * 1.2)); // 20%额外消费
+    gold = Math.max(1, Math.round(gold * VIP_BONUS_MULTIPLIER)); // 缩减VIP额外消费加成
   }
   
   // 计算女仆经验

@@ -24,7 +24,7 @@ export function TopBar() {
   };
 
   return (
-    <header className="bg-white border-b border-pink-100 px-2 sm:px-4 py-2 sm:py-3 shadow-sm">
+    <header className="bg-white border-b border-pink-100 px-2 sm:px-4 py-2 sm:py-3 shadow-sm flex-shrink-0">
       <div className="hidden sm:flex items-center justify-between max-w-7xl mx-auto gap-3">
         <div className="flex items-center gap-2 text-sm text-gray-600 min-w-0">
           <span className="font-medium text-gray-700 whitespace-nowrap">{formatDay(day)}</span>

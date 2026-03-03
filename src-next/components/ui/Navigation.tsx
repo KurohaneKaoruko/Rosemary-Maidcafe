@@ -50,9 +50,9 @@ export function Navigation() {
   };
 
   return (
-    <nav className="bg-white border-b border-pink-100">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4">
-        <div className="flex items-center justify-center sm:justify-start gap-2 overflow-x-auto py-2">
+    <nav className="bg-white border-b border-pink-100 h-14 flex-shrink-0">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 h-full">
+        <div className="flex h-full items-center justify-center sm:justify-start gap-2 overflow-x-auto py-2">
           {navItems.map((item) => (
             <NavButton
               key={item.id}
@@ -228,7 +228,7 @@ export function NavigationSide() {
   }
 
   return (
-    <nav className="nav-side-landscape">
+    <nav className="nav-side-landscape h-full flex-shrink-0">
       <div className="flex flex-col items-center py-1 gap-0.5 overflow-y-auto flex-1">
         {navItems.map((item) => (
           <button

@@ -168,7 +168,7 @@ export function MaidPanel() {
                   <p className="text-sm">点击上方按钮雇佣第一位女仆吧！</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {state.maids.map((maid) => (
                     <MaidListItem
                       key={maid.id}

@@ -21,6 +21,13 @@ export const initialGameState: GameState = {
     customerStatusTicks: {},
     customersServedToday: 0,
     customerStreak: 0,
+    operationCooldowns: {
+      attractCustomersMs: 0,
+      comfortGuestsMs: 0,
+      serviceRushMs: 0,
+      superviseServiceMs: 0,
+      motivateMaidMs: 0,
+    },
     nativeStaffingPrimed: false,
     nativeStaffingFrame: null,
   },

@@ -1,10 +1,10 @@
 import { Finance, DailyFinance, Maid, Facility } from '@/types';
 
 // 基础日常开支常量
-const BASE_RENT = 100;           // 基础租金
-const BASE_UTILITIES = 50;       // 基础水电费
-const MAID_DAILY_WAGE = 30;      // 女仆日薪基础
-const MAID_LEVEL_WAGE_BONUS = 5; // 每级额外工资
+const BASE_RENT = 130;           // 基础租金
+const BASE_UTILITIES = 70;       // 基础水电费
+const MAID_DAILY_WAGE = 38;      // 女仆日薪基础
+const MAID_LEVEL_WAGE_BONUS = 6; // 每级额外工资
 
 /**
  * 添加收入到财务记录

@@ -11,9 +11,9 @@ export function FinancePanel() {
   const { finance, day, maids, facility } = state;
 
   const dailyOperatingCost = calculateDailyOperatingCost(maids, facility);
-  const rent = 100 * facility.cafeLevel;
-  const utilities = 50 + facility.maxSeats * 5;
-  const dailyWages = maids.reduce((total, maid) => total + 30 + (maid.level - 1) * 5, 0);
+  const rent = 130 * facility.cafeLevel;
+  const utilities = 70 + facility.maxSeats * 5;
+  const dailyWages = maids.reduce((total, maid) => total + 38 + (maid.level - 1) * 6, 0);
   const equipmentMaintenance = facility.equipment.reduce((total, eq) => total + eq.level * 5, 0);
 
   const todayExpenses = finance.dailyExpenses + dailyOperatingCost;
@@ -22,10 +22,27 @@ export function FinancePanel() {
   // Normalize history for charting: keep latest record per day, then sort by day.
   const historyByDay = new Map<number, DailyFinance>();
   for (const entry of finance.history) {
-    if (!Number.isFinite(entry.day)) {
+    const dayValue = Number(entry.day);
+    if (!Number.isFinite(dayValue)) {
       continue;
     }
-    historyByDay.set(entry.day, entry);
+
+    const revenue = Number(entry.revenue);
+    const expenses = Number(entry.expenses);
+    const profit = Number(entry.profit);
+
+    const normalizedRevenue = Number.isFinite(revenue) ? Math.max(0, revenue) : 0;
+    const normalizedExpenses = Number.isFinite(expenses) ? Math.max(0, expenses) : 0;
+    const normalizedProfit = Number.isFinite(profit)
+      ? profit
+      : normalizedRevenue - normalizedExpenses;
+
+    historyByDay.set(Math.trunc(dayValue), {
+      day: Math.trunc(dayValue),
+      revenue: normalizedRevenue,
+      expenses: normalizedExpenses,
+      profit: normalizedProfit,
+    });
   }
   const normalizedHistory = [...historyByDay.values()].sort((a, b) => a.day - b.day);
   const recentHistory = normalizedHistory.slice(-7);
@@ -83,7 +100,7 @@ export function FinancePanel() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="h-48 flex items-end gap-2">
+                <div className="h-48 flex items-stretch gap-2">
                   {recentHistory.map((dayData, index) => (
                     <DayBar
                       key={`${dayData.day}-${index}`}
@@ -151,14 +168,14 @@ export function FinancePanel() {
                     amount={rent}
                     type="expense"
                     icon="🏠"
-                    note={`Lv.${facility.cafeLevel} × 100`}
+                    note={`Lv.${facility.cafeLevel} × 130`}
                   />
                   <ExpenseItem
                     label="水电费"
                     amount={utilities}
                     type="expense"
                     icon="💡"
-                    note={`${facility.maxSeats} 座 × 5 + 50`}
+                    note={`${facility.maxSeats} 座 × 5 + 70`}
                   />
                   <ExpenseItem
                     label="设备维护"
@@ -245,12 +262,14 @@ interface DayBarProps {
 
 function DayBar({ data, maxValue, isLatest }: DayBarProps) {
   const safeMaxValue = maxValue > 0 ? maxValue : 1;
-  const revenueHeight = Math.max(0, Math.min(100, (data.revenue / safeMaxValue) * 100));
-  const expenseHeight = Math.max(0, Math.min(100, (data.expenses / safeMaxValue) * 100));
+  const revenueRatio = Number.isFinite(data.revenue) ? (data.revenue / safeMaxValue) * 100 : 0;
+  const expenseRatio = Number.isFinite(data.expenses) ? (data.expenses / safeMaxValue) * 100 : 0;
+  const revenueHeight = Math.max(0, Math.min(100, revenueRatio));
+  const expenseHeight = Math.max(0, Math.min(100, expenseRatio));
 
   return (
-    <div className="flex-1 flex flex-col items-center">
-      <div className="flex-1 w-full flex items-end gap-1">
+    <div className="h-full flex-1 flex flex-col items-center justify-end min-w-0">
+      <div className="h-full w-full flex items-end gap-1 min-h-0">
         <div
           className={`flex-1 rounded-t transition-all duration-300 ${isLatest ? 'bg-green-500' : 'bg-green-400'}`}
           style={{ height: `${revenueHeight}%`, minHeight: data.revenue > 0 ? '4px' : '0px' }}

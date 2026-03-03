@@ -3625,7 +3625,7 @@ dependencies = [
 
 [[package]]
 name = "rosemary-maidcafe"
-version = "0.0.0"
+version = "0.0.2"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",

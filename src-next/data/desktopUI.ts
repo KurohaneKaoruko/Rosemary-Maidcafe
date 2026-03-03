@@ -5,20 +5,13 @@ import {
   PanelType,
 } from '@/types';
 
-export const PANEL_FLOATING_WINDOW_IDS = [
-  'tasks',
-  'achievements',
-  'finance',
-  'settings',
-] as const;
+export type PanelFloatingWindowId = 'tasks' | 'achievements' | 'finance' | 'settings';
 
-export type PanelFloatingWindowId = (typeof PANEL_FLOATING_WINDOW_IDS)[number];
+// Panel pages now render in the main stage instead of floating windows.
+export const PANEL_FLOATING_WINDOW_IDS: PanelFloatingWindowId[] = [];
 
+// Keep only detail windows as floating overlays.
 export const FLOATING_WINDOW_IDS: FloatingWindowId[] = [
-  'tasks',
-  'achievements',
-  'finance',
-  'settings',
   'maidDetail',
   'customerDetail',
 ];

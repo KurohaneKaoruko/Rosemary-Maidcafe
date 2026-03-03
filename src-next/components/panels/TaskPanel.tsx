@@ -11,14 +11,12 @@ export function TaskPanel() {
   const { state, dispatch } = useGame();
   const { tasks } = state;
 
-  const { dailyTasks, growthTasks } = useMemo(() => {
-    return {
-      dailyTasks: tasks.filter(t => t.type === 'daily'),
-      growthTasks: tasks.filter(t => t.type === 'growth'),
-    };
-  }, [tasks]);
-
-  const completedCount = tasks.filter(t => t.completed).length;
+  const growthTasks = useMemo(
+    () => tasks.filter((task) => task.type === 'growth'),
+    [tasks]
+  );
+  const completedCount = growthTasks.filter((task) => task.completed).length;
+  const totalCount = growthTasks.length;
 
   const claim = (taskId: string) => {
     dispatch({ type: 'CLAIM_TASK_REWARD', taskId });
@@ -27,26 +25,29 @@ export function TaskPanel() {
   return (
     <div className="min-h-full flex flex-col gap-4 p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-800">🎯 任务</h2>
+        <h2 className="text-xl font-bold text-gray-800">🎯 成长任务</h2>
         <div className="text-sm text-gray-500">
-          已完成 {completedCount} / {tasks.length}
+          已完成 {completedCount} / {totalCount}
         </div>
       </div>
 
       <Card>
         <CardBody>
           <div className="flex items-center gap-4">
-            <div className="text-4xl">🎯</div>
+            <div className="text-4xl">🌱</div>
             <div className="flex-1">
-              <div className="text-sm text-gray-500 mb-1">任务进度</div>
-              <ProgressBar value={completedCount} max={tasks.length} color="pink" size="lg" showLabel />
+              <div className="text-sm text-gray-500 mb-1">成长进度</div>
+              {totalCount > 0 ? (
+                <ProgressBar value={completedCount} max={totalCount} color="pink" size="lg" showLabel />
+              ) : (
+                <div className="text-sm text-gray-500">当前没有可用的成长任务</div>
+              )}
             </div>
           </div>
         </CardBody>
       </Card>
 
       <div className="flex-1 min-h-0 overflow-auto space-y-4">
-        <TaskSection title="📅 每日任务" tasks={dailyTasks} onClaim={claim} />
         <TaskSection title="🌱 成长任务" tasks={growthTasks} onClaim={claim} />
       </div>
     </div>
@@ -63,7 +64,7 @@ function TaskSection({ title, tasks, onClaim }: { title: string; tasks: Task[]; 
       <CardHeader>{title}</CardHeader>
       <CardBody>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {tasks.map(task => (
+          {tasks.map((task) => (
             <TaskCard key={task.id} task={task} onClaim={onClaim} />
           ))}
         </div>
@@ -123,4 +124,3 @@ function TaskCard({ task, onClaim }: { task: Task; onClaim: (taskId: string) => 
 }
 
 export default TaskPanel;
-

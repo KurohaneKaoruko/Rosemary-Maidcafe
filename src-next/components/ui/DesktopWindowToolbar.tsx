@@ -102,7 +102,7 @@ export function DesktopWindowToolbar({ enabled }: DesktopWindowToolbarProps) {
     }
   }, [dispatch, windowItems]);
 
-  if (!enabled) {
+  if (!enabled || windowItems.length === 0) {
     return null;
   }
 

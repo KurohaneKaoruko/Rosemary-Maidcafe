@@ -292,11 +292,22 @@ export type FloatingWindowId =
 
 export type GameSpeed = 0.5 | 1 | 2 | 4;
 
+export type CafeOperationType = 'attract_customers' | 'comfort_guests' | 'service_rush';
+
+export interface OperationCooldownState {
+  attractCustomersMs: number;
+  comfortGuestsMs: number;
+  serviceRushMs: number;
+  superviseServiceMs: number;
+  motivateMaidMs: number;
+}
+
 export interface GameRuntime {
   customerSpawnMs: number;
   customerStatusTicks: Record<string, number>;
   customersServedToday?: number;
   customerStreak?: number;
+  operationCooldowns: OperationCooldownState;
   nativeStaffingPrimed?: boolean;
   nativeStaffingFrame?: NativeStaffingFrame | null;
 }
@@ -521,6 +532,10 @@ export type GameAction =
   | { type: 'START_SERVICE'; maidId: string; customerId: string }
   | { type: 'UPDATE_SERVICE_PROGRESS'; maidId: string; customerId: string; progress: number }
   | { type: 'COMPLETE_SERVICE'; maidId: string; customerId: string }
+  | { type: 'USE_CAFE_OPERATION'; operation: CafeOperationType }
+  | { type: 'MANUAL_ASSIGN_SERVICE'; maidId: string; customerId: string }
+  | { type: 'SUPERVISE_SERVICE'; customerId: string }
+  | { type: 'MOTIVATE_MAID'; maidId: string }
   
   // 菜单管理
   | { type: 'UNLOCK_MENU_ITEM'; itemId: string }

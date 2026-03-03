@@ -9,7 +9,7 @@ describe('Task System Integration Tests', () => {
       id: 'test_task',
       name: 'Test',
       description: 'Test',
-      type: 'daily',
+      type: 'growth',
       condition: { type: 'serve_customers', target: 1 },
       reward: { gold: 123, reputation: 2 },
       progress: 1,
