@@ -1,6 +1,6 @@
 [package]
 name = "rosemary-maidcafe"
-version = "0.0.1"
+version = "0.0.2"
 description = "Rosemary MaidCafe Desktop"
 authors = ["you"]
 license = ""
