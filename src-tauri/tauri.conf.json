@@ -2,7 +2,7 @@
   "$schema": "..\\node_modules/@tauri-apps/cli\\schema.json",
   "build": {
     "beforeBuildCommand": "npm run next:build",
-    "beforeDevCommand": "npm run next:dev",
+    "beforeDevCommand": "npm run next:dev:ensure",
     "frontendDist": "../dist",
     "devUrl": "http://localhost:3527"
   },
@@ -42,7 +42,7 @@
   },
   "productName": "Rosemary MaidCafe",
   "mainBinaryName": "rosemary-maidcafe",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "identifier": "com.rosemary.maidcafe",
   "plugins": {},
   "app": {
