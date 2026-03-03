@@ -35,9 +35,17 @@ import {
   sortMaidsForService,
   tickStaffingBoost,
 } from '@/systems/staffingSystem';
+import { normalizeReputation } from '@/utils/formatters';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function sanitizeNonNegativeNumber(value: unknown, fallback = 0): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(0, Number(value));
 }
 
 function isCustomerStatus(value: unknown): value is GameState['customers'][number]['status'] {
@@ -117,7 +125,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       const nextRuntime = {
         ...state.runtime,
-        customerSpawnMs: (state.runtime.customerSpawnMs ?? 0) + deltaMs,
+        customerSpawnMs: sanitizeNonNegativeNumber(state.runtime.customerSpawnMs) + deltaMs,
         customerStatusTicks: { ...(state.runtime.customerStatusTicks ?? {}) },
         customersServedToday: state.runtime.customersServedToday ?? 0,
         customerStreak: state.runtime.customerStreak ?? 0,
@@ -128,7 +136,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const baseCustomers = state.customers;
 
       const notifications = [...state.notifications];
-      let reputation = state.reputation;
+      let reputation = normalizeReputation(state.reputation);
       let tasks = state.tasks;
       let staffing = useNativeStaffing
         ? normalizeStaffingState(state.staffing)
@@ -297,7 +305,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             : (fallbackTimeout?.customer ?? updatedCustomer);
           const previousStreak = nextRuntime.customerStreak ?? 0;
           const degradedStreak = Math.max(0, previousStreak - 3);
-          reputation = Math.max(0, reputation - reputationPenalty);
+          reputation = normalizeReputation(reputation - reputationPenalty);
           customersById.set(customer.id, leavingCustomer);
           nextRuntime.customerStatusTicks[customer.id] = 1;
           nextRuntime.customerStreak = degradedStreak;
@@ -482,7 +490,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           },
         };
 
-        reputation = Math.max(0, Math.min(100, reputation + completedReputationTotal));
+        reputation = normalizeReputation(reputation + completedReputationTotal);
       }
 
       const nativeAssignments = Array.isArray(nativeFrame?.serviceAssignments)
@@ -567,7 +575,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const occupiedSeats = new Set(activeCustomers.map(c => c.seatId));
 
       const baseSpawnInterval = getSpawnInterval(reputation, state.facility.cafeLevel);
-      const spawnIntervalMs =
+      const rawSpawnIntervalMs =
         nativeFrame?.spawnIntervalMs ??
         getSpawnIntervalWithStaffing(
           baseSpawnInterval,
@@ -575,41 +583,34 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           currentShift,
           staffing
         );
-      let spawnMs = nextRuntime.customerSpawnMs;
-      const spawnFromNative = Boolean(nativeFrame?.spawnPlan);
-      if (spawnFromNative) {
-        const plannedSpawnCount = Math.max(0, Math.floor(nativeFrame?.spawnPlan.spawnCount ?? 0));
-        const plannedCandidates = (nativeFrame?.spawnCandidates ?? []).slice(0, plannedSpawnCount);
-        spawnMs = Math.max(0, nativeFrame?.spawnPlan.nextSpawnMs ?? spawnMs);
+      const spawnIntervalMs =
+        Number.isFinite(rawSpawnIntervalMs) && rawSpawnIntervalMs > 0
+          ? rawSpawnIntervalMs
+          : baseSpawnInterval;
+      let spawnMs = sanitizeNonNegativeNumber(nextRuntime.customerSpawnMs);
+      const nativeCandidates = nativeFrame?.spawnCandidates ?? [];
 
-        for (const nativeSpawn of plannedCandidates) {
-          if (occupiedSeats.size >= state.facility.maxSeats) {
+      let spawnCount = 0;
+      while (spawnMs >= spawnIntervalMs && spawnCount < 3) {
+        if (occupiedSeats.size >= state.facility.maxSeats) {
+          break;
+        }
+
+        let seatId: string | null = null;
+        for (let i = 1; i <= state.facility.maxSeats; i++) {
+          const candidate = `seat-${i}`;
+          if (!occupiedSeats.has(candidate)) {
+            seatId = candidate;
             break;
           }
+        }
 
-          let seatId: string | null =
-            typeof nativeSpawn.seatId === 'string' && nativeSpawn.seatId.trim().length > 0
-              ? nativeSpawn.seatId
-              : null;
+        if (!seatId) {
+          break;
+        }
 
-          if (seatId && occupiedSeats.has(seatId)) {
-            seatId = null;
-          }
-
-          if (!seatId) {
-            for (let i = 1; i <= state.facility.maxSeats; i++) {
-              const candidate = `seat-${i}`;
-              if (!occupiedSeats.has(candidate)) {
-                seatId = candidate;
-                break;
-              }
-            }
-          }
-
-          if (!seatId) {
-            break;
-          }
-
+        const nativeSpawn = nativeCandidates[spawnCount];
+        if (nativeSpawn) {
           const safeType =
             nativeSpawn.type === 'vip' ||
             nativeSpawn.type === 'critic' ||
@@ -640,28 +641,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             arrivalTime: nativeSpawn.arrivalTime || Date.now(),
             seatId,
           });
-          occupiedSeats.add(seatId);
-        }
-      } else {
-        let spawnCount = 0;
-        while (spawnMs >= spawnIntervalMs && spawnCount < 3) {
-          if (occupiedSeats.size >= state.facility.maxSeats) {
-            break;
-          }
-
-          let seatId: string | null = null;
-          for (let i = 1; i <= state.facility.maxSeats; i++) {
-            const candidate = `seat-${i}`;
-            if (!occupiedSeats.has(candidate)) {
-              seatId = candidate;
-              break;
-            }
-          }
-
-          if (!seatId) {
-            break;
-          }
-
+        } else {
           const newCustomer = generateCustomer(reputation, state.season);
           const order = generateOrder(newCustomer, state.menuItems, state.season);
 
@@ -671,10 +651,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             seatId,
             status: 'seated',
           });
-          occupiedSeats.add(seatId);
-          spawnMs -= spawnIntervalMs;
-          spawnCount += 1;
         }
+
+        occupiedSeats.add(seatId);
+        spawnMs -= spawnIntervalMs;
+        spawnCount += 1;
       }
 
       const finalCustomers = [...customersById.values()];
@@ -1225,7 +1206,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           gold: state.finance.gold + rewards.gold + rewards.tip,
           dailyRevenue: state.finance.dailyRevenue + rewards.gold + rewards.tip,
         },
-        reputation: Math.max(0, Math.min(100, state.reputation + rewards.reputation)),
+        reputation: normalizeReputation(state.reputation + rewards.reputation),
         statistics: {
           ...state.statistics,
           totalCustomersServed: nextTotalCustomersServed,
@@ -1499,7 +1480,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         activeIncident: null,
         staffing: nextStaffing,
-        reputation: clamp(state.reputation + (option.reputationDelta ?? 0), 0, 100),
+        reputation: normalizeReputation(state.reputation + (option.reputationDelta ?? 0)),
         finance: {
           ...state.finance,
           gold: Math.max(0, state.finance.gold + (option.goldDelta ?? 0)),
@@ -1567,7 +1548,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           gold: state.finance.gold + reward.gold,
           dailyRevenue: state.finance.dailyRevenue + reward.gold,
         },
-        reputation: Math.max(0, Math.min(100, state.reputation + reward.reputation)),
+        reputation: normalizeReputation(state.reputation + reward.reputation),
         notifications: [
           ...state.notifications,
           {
@@ -1796,6 +1777,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'CLOSE_DAILY_SUMMARY': {
+      if (!state.isBusinessHours) {
+        return {
+          ...state,
+          dailySummaryOpen: true,
+        };
+      }
+
       return {
         ...state,
         dailySummaryOpen: false,
@@ -1835,11 +1823,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     // ==================== 存储 ====================
     case 'LOAD_GAME': {
+      const shouldRestoreDailySummary = action.state.isBusinessHours === false;
+
       return {
         ...action.state,
+        time: shouldRestoreDailySummary
+          ? GAME_CONSTANTS.BUSINESS_END_TIME
+          : action.state.time,
+        isPaused: shouldRestoreDailySummary
+          ? true
+          : action.state.isPaused,
         runtime: action.state.runtime
           ? {
-              customerSpawnMs: action.state.runtime.customerSpawnMs ?? 0,
+              customerSpawnMs: sanitizeNonNegativeNumber(action.state.runtime.customerSpawnMs),
               customerStatusTicks: action.state.runtime.customerStatusTicks ?? {},
               customersServedToday: action.state.runtime.customersServedToday ?? 0,
               customerStreak: action.state.runtime.customerStreak ?? 0,
@@ -1870,7 +1866,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         activeEvents: action.state.activeEvents ?? [],
         eventHistory: action.state.eventHistory ?? [],
         desktopUI: action.state.desktopUI ?? initialGameState.desktopUI,
-        dailySummaryOpen: false,
+        dailySummaryOpen: shouldRestoreDailySummary,
       };
     }
 

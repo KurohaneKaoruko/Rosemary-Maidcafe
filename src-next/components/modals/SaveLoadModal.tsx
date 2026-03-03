@@ -5,7 +5,7 @@ import { GameState } from '@/types';
 import { Modal, ConfirmModal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { deleteSave, getSaveInfo, saveGame, StorageResult } from '@/utils/storage';
-import { formatDay, formatTimestamp } from '@/utils/formatters';
+import { formatDay, formatTimestamp, formatReputation } from '@/utils/formatters';
 
 type TabType = 'save' | 'new';
 
@@ -179,7 +179,7 @@ function SaveTab({ gameState, saveInfo, isLoading, onSave }: SaveTabProps) {
           </div>
           <div>
             <span className="text-gray-500">声望:</span>
-            <span className="ml-2 font-medium">⭐ {gameState.reputation}</span>
+            <span className="ml-2 font-medium">⭐ {formatReputation(gameState.reputation)}</span>
           </div>
         </div>
       </div>

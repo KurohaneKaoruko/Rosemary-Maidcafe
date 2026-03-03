@@ -55,6 +55,32 @@ npm run next:build
 npm run build:desktop
 ```
 
+## 发行脚本
+
+统一更新版本号（`package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`）：
+
+```bash
+npm run release -- 0.2.0
+```
+
+按语义化版本自动递增：
+
+```bash
+npm run release -- patch
+```
+
+创建发布提交与标签（用于触发 `v*` 的 GitHub Actions 打包工作流）：
+
+```bash
+npm run release -- 0.2.0 --commit --tag
+```
+
+提交并推送标签：
+
+```bash
+npm run release -- 0.2.0 --push
+```
+
 Windows 产物目录：
 
 - `src-tauri/target/release/bundle/msi/`

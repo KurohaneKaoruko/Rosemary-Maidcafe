@@ -5,7 +5,6 @@ import { useGame } from './GameProvider';
 import { useGameLoopControls } from './GameLoop';
 import { TopBar } from '@/components/ui/TopBar';
 import { DesktopTitlebar } from '@/components/ui/DesktopTitlebar';
-import { DesktopWindowToolbar } from '@/components/ui/DesktopWindowToolbar';
 import { DesktopDock } from '@/components/ui/DesktopDock';
 import { Navigation, NavigationBottom, NavigationSide } from '@/components/ui/Navigation';
 import { NotificationContainer } from '@/components/ui/Notification';
@@ -131,7 +130,6 @@ export function GameUI() {
           <>
             <DesktopDock />
             <main className="relative flex-1 overflow-visible">
-              <DesktopWindowToolbar enabled={desktopFloatingMode} />
               <div className="desktop-stage-shell">{renderActivePanel()}</div>
               <FloatingWindowsLayer enabled={desktopFloatingMode} />
             </main>

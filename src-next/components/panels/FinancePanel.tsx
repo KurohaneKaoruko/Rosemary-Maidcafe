@@ -19,17 +19,24 @@ export function FinancePanel() {
   const todayExpenses = finance.dailyExpenses + dailyOperatingCost;
   const todayProfit = finance.dailyRevenue - todayExpenses;
 
-  const recentHistory = finance.history.slice(-7);
+  // Normalize history for charting: keep latest record per day, then sort by day.
+  const historyByDay = new Map<number, DailyFinance>();
+  for (const entry of finance.history) {
+    if (!Number.isFinite(entry.day)) {
+      continue;
+    }
+    historyByDay.set(entry.day, entry);
+  }
+  const normalizedHistory = [...historyByDay.values()].sort((a, b) => a.day - b.day);
+  const recentHistory = normalizedHistory.slice(-7);
   const totalRevenue = recentHistory.reduce((sum, d) => sum + d.revenue, 0);
   const totalExpenses = recentHistory.reduce((sum, d) => sum + d.expenses, 0);
   const totalProfit = recentHistory.reduce((sum, d) => sum + d.profit, 0);
 
-  const maxValue = Math.max(
-    ...recentHistory.map((d) => Math.max(d.revenue, d.expenses)),
-    finance.dailyRevenue,
-    todayExpenses,
-    100
-  );
+  // Only use visible historical points for scaling, avoid mixing in current-day partial values.
+  const maxValue = recentHistory.length > 0
+    ? Math.max(...recentHistory.map((d) => Math.max(d.revenue, d.expenses)), 1)
+    : 1;
 
   return (
     <div className="min-h-full flex flex-col gap-4 p-4">
@@ -79,7 +86,7 @@ export function FinancePanel() {
                 <div className="h-48 flex items-end gap-2">
                   {recentHistory.map((dayData, index) => (
                     <DayBar
-                      key={dayData.day}
+                      key={`${dayData.day}-${index}`}
                       data={dayData}
                       maxValue={maxValue}
                       isLatest={index === recentHistory.length - 1}
@@ -210,8 +217,8 @@ export function FinancePanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...recentHistory].reverse().map((dayData) => (
-                    <tr key={dayData.day} className="border-b border-gray-50">
+                  {[...recentHistory].reverse().map((dayData, index) => (
+                    <tr key={`${dayData.day}-${index}`} className="border-b border-gray-50">
                       <td className="py-2 px-3 text-gray-800">第 {dayData.day} 天</td>
                       <td className="py-2 px-3 text-right text-green-600">+{dayData.revenue}</td>
                       <td className="py-2 px-3 text-right text-red-600">-{dayData.expenses}</td>
@@ -237,20 +244,21 @@ interface DayBarProps {
 }
 
 function DayBar({ data, maxValue, isLatest }: DayBarProps) {
-  const revenueHeight = (data.revenue / maxValue) * 100;
-  const expenseHeight = (data.expenses / maxValue) * 100;
+  const safeMaxValue = maxValue > 0 ? maxValue : 1;
+  const revenueHeight = Math.max(0, Math.min(100, (data.revenue / safeMaxValue) * 100));
+  const expenseHeight = Math.max(0, Math.min(100, (data.expenses / safeMaxValue) * 100));
 
   return (
     <div className="flex-1 flex flex-col items-center">
       <div className="flex-1 w-full flex items-end gap-1">
         <div
           className={`flex-1 rounded-t transition-all duration-300 ${isLatest ? 'bg-green-500' : 'bg-green-400'}`}
-          style={{ height: `${revenueHeight}%`, minHeight: '4px' }}
+          style={{ height: `${revenueHeight}%`, minHeight: data.revenue > 0 ? '4px' : '0px' }}
           title={`收入: ${data.revenue}`}
         />
         <div
           className={`flex-1 rounded-t transition-all duration-300 ${isLatest ? 'bg-red-500' : 'bg-red-400'}`}
-          style={{ height: `${expenseHeight}%`, minHeight: '4px' }}
+          style={{ height: `${expenseHeight}%`, minHeight: data.expenses > 0 ? '4px' : '0px' }}
           title={`支出: ${data.expenses}`}
         />
       </div>
