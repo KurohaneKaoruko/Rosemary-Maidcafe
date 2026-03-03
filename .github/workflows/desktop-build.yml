@@ -1,7 +1,12 @@
-name: Desktop Build (Windows + macOS)
+name: Desktop Release (Windows + macOS)
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and release (e.g. v0.0.1)
+        required: true
+        type: string
   push:
     tags:
       - 'v*'
@@ -27,6 +32,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -43,10 +50,47 @@ jobs:
       - name: Build desktop app
         run: npm run build:desktop
 
+      - name: Verify bundle output
+        shell: bash
+        run: |
+          if [ ! -d "src-tauri/target/release/bundle" ]; then
+            echo "Bundle directory not found"
+            exit 1
+          fi
+          find src-tauri/target/release/bundle -type f
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: rosemary-maidcafe-${{ matrix.platform.name }}
+          name: rosemary-maidcafe-${{ matrix.platform.name }}-${{ github.event.inputs.tag || github.ref_name }}
           if-no-files-found: error
           path: |
             src-tauri/target/release/bundle/**
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: List release files
+        run: find release-artifacts -type f
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: Rosemary MaidCafe ${{ github.event.inputs.tag || github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release-artifacts/**/*
