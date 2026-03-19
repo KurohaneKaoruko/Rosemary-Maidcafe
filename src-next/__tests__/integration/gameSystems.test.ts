@@ -31,6 +31,7 @@ import {
   calculateMaxSeats,
   calculateSatisfactionBonus,
 } from '@/systems/facilitySystem';
+import { applyServiceComboToRewards } from '@/systems/comboSystem';
 import { initialGameState, GAME_CONSTANTS } from '@/data/initialState';
 import { Finance } from '@/types';
 
@@ -188,6 +189,18 @@ describe('Game Systems Integration Tests', () => {
         
         expect(highRepInterval).toBeLessThan(lowRepInterval);
       });
+    });
+  });
+
+  describe('Combo System', () => {
+    it('should keep combo reputation rewards as integers', () => {
+      const rewards = applyServiceComboToRewards(
+        { gold: 100, tip: 50, reputation: 1, maidExperience: 8 },
+        6
+      );
+
+      expect(rewards.reputation).toBe(2);
+      expect(Number.isInteger(rewards.reputation)).toBe(true);
     });
   });
 

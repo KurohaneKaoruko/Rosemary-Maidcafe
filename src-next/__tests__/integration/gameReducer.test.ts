@@ -485,6 +485,18 @@ describe('Game Reducer Integration Tests', () => {
       expect(newState.finance.gold).toBe(5000);
     });
 
+    it('should round loaded fractional reputation to an integer', () => {
+      const loadedState: GameState = {
+        ...initialGameState,
+        reputation: 52.5,
+      };
+
+      const newState = gameReducer(state, { type: 'LOAD_GAME', state: loadedState });
+
+      expect(newState.reputation).toBe(53);
+      expect(Number.isInteger(newState.reputation)).toBe(true);
+    });
+
     it('should reset game to initial state', () => {
       state.day = 50;
       state.finance.gold = 10000;
@@ -493,6 +505,38 @@ describe('Game Reducer Integration Tests', () => {
       
       expect(newState.day).toBe(initialGameState.day);
       expect(newState.finance.gold).toBe(initialGameState.finance.gold);
+    });
+  });
+
+  describe('Cafe Operations', () => {
+    it('should keep reputation as an integer after comforting guests', () => {
+      const customer: Customer = {
+        id: 'customer-1',
+        type: 'regular',
+        name: 'Test Customer',
+        avatar: '👤',
+        order: { items: [], totalPrice: 50, preparedItems: [] },
+        patience: 40,
+        satisfaction: 50,
+        status: 'seated',
+        arrivalTime: Date.now(),
+        seatId: 'seat-1',
+      };
+
+      state = {
+        ...state,
+        reputation: 52.5,
+        finance: {
+          ...state.finance,
+          gold: 1000,
+        },
+        customers: [customer],
+      };
+
+      const newState = gameReducer(state, { type: 'USE_CAFE_OPERATION', operation: 'comfort_guests' });
+
+      expect(newState.reputation).toBe(53);
+      expect(Number.isInteger(newState.reputation)).toBe(true);
     });
   });
 });

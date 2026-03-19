@@ -123,6 +123,20 @@ describe('Storage System Integration Tests', () => {
       expect(result.data?.reputation).toBe(75);
       expect(result.data?.statistics.totalCustomersServed).toBe(50);
     });
+
+    it('should round fractional reputation during save and load', async () => {
+      const modifiedState: GameState = {
+        ...initialGameState,
+        reputation: 52.5,
+      };
+
+      await saveGame(modifiedState);
+      const result = await loadGame();
+
+      expect(result.success).toBe(true);
+      expect(result.data?.reputation).toBe(53);
+      expect(Number.isInteger(result.data?.reputation)).toBe(true);
+    });
   });
 
   describe('Save Data Validation', () => {

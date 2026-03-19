@@ -1290,12 +1290,8 @@ fn calculate_combo_multiplier(customer_streak: u32) -> f64 {
 }
 
 fn calculate_combo_reputation_bonus(customer_streak: u32) -> f64 {
-    if customer_streak >= 10 {
+    if customer_streak >= 6 {
         1.0
-    } else if customer_streak >= 6 {
-        0.5
-    } else if customer_streak >= 3 {
-        0.2
     } else {
         0.0
     }

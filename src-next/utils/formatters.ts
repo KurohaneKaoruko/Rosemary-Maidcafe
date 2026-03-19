@@ -181,24 +181,22 @@ export function formatNumber(value: number): string {
 }
 
 /**
- * Normalize reputation value to avoid floating-point drift.
- * Reputation is clamped to [0, 100] and kept at 1 decimal precision.
+ * Normalize reputation value to a whole-number score.
+ * Reputation is clamped to [0, 100] and rounded to the nearest integer.
  */
 export function normalizeReputation(value: number): number {
   if (!Number.isFinite(value)) {
     return 0;
   }
   const clamped = Math.min(Math.max(value, 0), 100);
-  return Math.round((clamped + Number.EPSILON) * 10) / 10;
+  return Math.round(clamped);
 }
 
 /**
  * Format reputation for UI display.
- * Integer values are shown without decimals; otherwise keep 1 decimal.
  */
 export function formatReputation(value: number): string {
-  const normalized = normalizeReputation(value);
-  return Number.isInteger(normalized) ? `${normalized}` : normalized.toFixed(1);
+  return `${normalizeReputation(value)}`;
 }
 
 /**
