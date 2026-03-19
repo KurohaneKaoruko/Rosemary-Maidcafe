@@ -1,5 +1,6 @@
 import { GameEvent, GameState, Season, EventEffect } from '@/types';
 import { positiveEvents, negativeEvents, seasonalEvents } from '@/data/events';
+import { normalizeReputation } from '@/utils/formatters';
 
 /**
  * 事件系统 - 处理游戏中的随机事件、季节事件和事件效果
@@ -86,7 +87,7 @@ function applyImmediateEffect(state: GameState, effect: EventEffect): GameState 
 
   switch (effect.target) {
     case 'reputation':
-      newState.reputation = Math.max(0, Math.min(100, state.reputation + effect.modifier));
+      newState.reputation = normalizeReputation(state.reputation + effect.modifier);
       break;
     case 'revenue':
       // 即时收入效果直接加到金币

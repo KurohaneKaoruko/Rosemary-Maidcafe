@@ -21,14 +21,8 @@ export function getServiceComboMultiplier(streak: number): number {
 
 export function getServiceComboReputationBonus(streak: number): number {
   const safeStreak = Math.max(0, Math.floor(streak));
-  if (safeStreak >= 10) {
-    return 1.0;
-  }
   if (safeStreak >= 6) {
-    return 0.5;
-  }
-  if (safeStreak >= 3) {
-    return 0.2;
+    return 1;
   }
   return 0;
 }

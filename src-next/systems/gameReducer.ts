@@ -1586,7 +1586,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             gold: state.finance.gold - cost,
             dailyExpenses: state.finance.dailyExpenses + cost,
           },
-          reputation: normalizeReputation(state.reputation + 0.3),
+          reputation: normalizeReputation(state.reputation),
           runtime: {
             ...state.runtime,
             operationCooldowns: {
@@ -2327,6 +2327,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         notifications: Array.isArray(action.state.notifications) ? action.state.notifications : [],
         selectedMaidId: action.state.selectedMaidId ?? null,
         selectedCustomerId: action.state.selectedCustomerId ?? null,
+        reputation: normalizeReputation(action.state.reputation ?? initialGameState.reputation),
         activePanel: action.state.activePanel ?? 'cafe',
         activeEvents: action.state.activeEvents ?? [],
         eventHistory: action.state.eventHistory ?? [],
