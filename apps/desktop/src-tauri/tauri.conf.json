@@ -1,9 +1,9 @@
 {
-  "$schema": "..\\node_modules/@tauri-apps/cli\\schema.json",
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "build": {
-    "beforeBuildCommand": "npm run next:build",
-    "beforeDevCommand": "npm run next:dev:ensure",
-    "frontendDist": "../dist",
+    "beforeBuildCommand": "cd ../../.. && TAURI_BUILD=true pnpm --filter @rosemary/web build",
+    "beforeDevCommand": "cd ../../.. && TAURI_BUILD=true pnpm --filter @rosemary/web dev",
+    "frontendDist": "../../web/dist",
     "devUrl": "http://localhost:3527"
   },
   "bundle": {
