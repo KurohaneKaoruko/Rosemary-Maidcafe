@@ -9,7 +9,7 @@ coverage/
 *.tsbuildinfo
 
 # tauri / rust build artifacts
-src-tauri/target/
+apps/desktop/src-tauri/target/
 
 # logs
 npm-debug.log*
@@ -21,6 +21,10 @@ pnpm-debug.log*
 .env
 .env.local
 .env.*.local
+
+# local-only config (do NOT commit; users set up their own mirror if needed)
+.npmrc
+.pnpmrc
 
 # editor / system files
 .idea/
