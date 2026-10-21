@@ -2,8 +2,8 @@
 name = "rosemary-maidcafe"
 version = "0.0.2"
 description = "Rosemary MaidCafe Desktop"
-authors = ["you"]
-license = ""
+authors = ["KurohaneKaoruko"]
+license = "AGPL-3.0-or-later"
 repository = ""
 edition = "2021"
 rust-version = "1.57"

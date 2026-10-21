@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Rosemary MaidCafe — React (Vite) web app (deployable as a static site).",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "vite --port 3527",
     "build": "tsc --noEmit && vite build",

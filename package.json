@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Rosemary MaidCafe — single codebase deployed as both a static web app and a Tauri desktop app.",
+  "license": "AGPL-3.0-or-later",
   "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=20",

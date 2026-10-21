@@ -2,6 +2,8 @@
 
 一款基于 React 19 + Vite + Tailwind CSS 4 + Tauri 2 的模拟经营女仆咖啡厅游戏。
 
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](./LICENSE)
+
 > **本仓库是从 `Rosemary-Maidcafe-NextJS`（Web 版）与 `Rosemary-Maidcafe-Tauri`（Tauri 桌面版）合并而来的 monorepo**。两份代码历史上分别维护，已漂移；本仓库以 Tauri 版本为基底，统一为单一份代码 + 双目标部署（静态网页 + Tauri 桌面）。
 
 ## 🏗️ 仓库结构（pnpm workspaces）
@@ -125,6 +127,14 @@ pnpm desktop:build    # 构建安装包（产物在 apps/desktop/src-tauri/targe
 ## 📜 历史
 
 详见 `progress.md`。
+
+## 📄 许可证
+
+本项目基于 [GNU Affero General Public License v3.0（AGPL-3.0-or-later）](./LICENSE) 发布。
+
+- 任何修改版或衍生作品都必须同样以 AGPL-3.0 开源
+- 若将本项目（含修改版）作为网络服务提供，必须向该服务的用户提供完整源代码
+- 完整许可证文本见 [`LICENSE`](./LICENSE)
 
 ## 当前桌面应用元信息
 
