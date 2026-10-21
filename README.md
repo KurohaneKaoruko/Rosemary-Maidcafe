@@ -4,7 +4,6 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](./LICENSE)
 
-> **本仓库是从 `Rosemary-Maidcafe-NextJS`（Web 版）与 `Rosemary-Maidcafe-Tauri`（Tauri 桌面版）合并而来的 monorepo**。两份代码历史上分别维护，已漂移；本仓库以 Tauri 版本为基底，统一为单一份代码 + 双目标部署（静态网页 + Tauri 桌面）。
 
 ## 🏗️ 仓库结构（pnpm workspaces）
 
