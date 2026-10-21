@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { DailyFinance } from '@/types';
 import { useGame } from '@/components/game/GameProvider';

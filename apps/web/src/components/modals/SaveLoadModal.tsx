@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useCallback, useEffect, useState } from 'react';
 import { GameState } from '@/types';
 import { Modal, ConfirmModal } from '@/components/ui/Modal';

@@ -1,5 +1,3 @@
-'use client';
-
 import { useEffect, useRef, useCallback } from 'react';
 import { GameState, GameAction } from '@/types';
 import { GAME_CONSTANTS } from '@/data/initialState';

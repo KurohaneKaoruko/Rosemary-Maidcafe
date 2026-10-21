@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useCallback, useEffect } from 'react';
 import { useGame } from './GameProvider';
 import { useGameLoopControls } from './GameLoop';

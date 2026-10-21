@@ -1,7 +1,4 @@
-'use client';
-
 import React, { useState } from 'react';
-import Image, { type StaticImageData } from 'next/image';
 import { resolveMaidImage } from '@/assets/maid-image';
 
 export type MaidAvatarSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -23,12 +20,11 @@ const sizeConfig: Record<MaidAvatarSize, { container: string; width: number; hei
 
 /**
  * MaidAvatar - 女仆头像组件
- * 使用 Next.js Image 组件优化加载
+ * 使用原生 img 标签 + loading="lazy" 实现图片懒加载
  * 支持多种尺寸 (sm, md, lg, xl)
  * 添加圆角和阴影效果
  * 添加加载失败回退显示
- * 使用 loading="lazy" 实现图片懒加载
- * 
+ *
  * Requirements: 1.4, 1.5, 7.2
  */
 export function MaidAvatar({
@@ -36,22 +32,17 @@ export function MaidAvatar({
   name,
   size = 'md',
   className = '',
-  showFallback = true,
+  showFallback: _showFallback = true,
 }: MaidAvatarProps) {
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const config = sizeConfig[size];
 
-  // Resolve legacy avatar path (e.g. /maid-image/xxxx.jpg) to a static import for Next optimization.
-  const optimizedSource = src ? resolveMaidImage(src) : null;
-  const supportsBlurPlaceholder =
-    !!optimizedSource &&
-    typeof optimizedSource !== 'string' &&
-    typeof (optimizedSource as StaticImageData).blurDataURL === 'string' &&
-    ((optimizedSource as StaticImageData).blurDataURL?.length ?? 0) > 0;
+  // Resolve legacy avatar path (e.g. /maid-image/xxxx.jpg) to a public asset URL.
+  const resolvedSource = src ? resolveMaidImage(src) : null;
 
   // Show fallback emoji if no valid image or error occurred
-  if (!optimizedSource || hasError) {
+  if (!resolvedSource || hasError) {
     return (
       <div
         className={`
@@ -90,9 +81,9 @@ export function MaidAvatar({
           <span className={`${config.fallbackText} opacity-50`}>👧</span>
         </div>
       )}
-      
-      <Image
-        src={optimizedSource}
+
+      <img
+        src={resolvedSource}
         alt={name}
         width={config.width}
         height={config.height}
@@ -108,8 +99,6 @@ export function MaidAvatar({
           setIsLoading(false);
         }}
         loading="lazy"
-        placeholder={supportsBlurPlaceholder ? 'blur' : 'empty'}
-        sizes={`${config.width}px`}
       />
     </div>
   );

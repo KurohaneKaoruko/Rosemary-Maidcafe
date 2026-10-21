@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 import { MenuItem, MenuCategory, Season } from '@/types';
 import { useGame } from '@/components/game/GameProvider';

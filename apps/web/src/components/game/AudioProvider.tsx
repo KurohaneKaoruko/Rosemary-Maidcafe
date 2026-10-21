@@ -1,5 +1,3 @@
-'use client';
-
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '@/components/game/GameProvider';
 
@@ -115,7 +113,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (!nodes) return;
     try {
       nodes.osc.stop();
-    } catch {}
+    } catch {
+      // Oscillator may already be stopped; safe to ignore.
+    }
     bgmNodesRef.current = null;
   }, []);
 

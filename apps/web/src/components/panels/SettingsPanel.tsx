@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useEffect, useState } from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { useAudio } from '@/components/game/AudioProvider';

@@ -2,23 +2,25 @@
   "name": "@rosemary/web",
   "version": "0.1.0",
   "private": true,
-  "description": "Rosemary MaidCafe — Next.js web app (deployable to Vercel).",
+  "type": "module",
+  "description": "Rosemary MaidCafe — React (Vite) web app (deployable as a static site).",
   "scripts": {
-    "dev": "next dev --port 3527",
-    "build": "next build",
-    "start": "next start --port 3527",
+    "dev": "vite --port 3527",
+    "build": "tsc --noEmit && vite build",
+    "start": "vite preview --port 3527",
     "lint": "eslint src",
     "test": "vitest --run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@tauri-apps/api": "2.7.0",
-    "next": "16.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@eslint/js": "^9",
     "@tailwindcss/postcss": "^4.0.0",
+    "@tailwindcss/vite": "^4.0.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@types/node": "^20",
@@ -27,10 +29,14 @@
     "@vitejs/plugin-react": "^5.1.2",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.1.1",
+    "eslint-plugin-react-hooks": "^6.1.0",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.0.0",
     "jsdom": "^27.4.0",
     "tailwindcss": "^4.0.0",
     "typescript": "^5",
+    "typescript-eslint": "^8.0.0",
+    "vite": "^7.3.0",
     "vitest": "^4.0.16"
   }
 }

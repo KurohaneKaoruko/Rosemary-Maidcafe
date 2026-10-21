@@ -1,5 +1,3 @@
-'use client';
-
 import { useGame } from '@/components/game/GameProvider';
 import { useLandscapeMode } from '@/hooks/useLandscapeMode';
 import { useDesktopFloatingMode } from '@/hooks/useDesktopFloatingMode';

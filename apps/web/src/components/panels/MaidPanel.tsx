@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect } from 'react';
 import { Maid, MaidRole, MaidPersonality } from '@/types';
 import { useGame } from '@/components/game/GameProvider';

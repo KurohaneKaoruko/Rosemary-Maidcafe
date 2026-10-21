@@ -1,5 +1,3 @@
-'use client';
-
 import React, { ReactNode, useEffect, useCallback } from 'react';
 import { Button } from './Button';
 

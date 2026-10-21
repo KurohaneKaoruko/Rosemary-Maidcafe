@@ -3,10 +3,10 @@ node_modules/
 
 # frontend build/cache
 dist/
-.next/
 out/
 coverage/
 *.tsbuildinfo
+dist-types/
 
 # tauri / rust build artifacts
 apps/desktop/src-tauri/target/

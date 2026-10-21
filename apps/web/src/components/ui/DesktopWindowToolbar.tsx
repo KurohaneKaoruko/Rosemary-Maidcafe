@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useCallback, useMemo } from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { DESKTOP_TOOLBAR_WINDOW_IDS, FLOATING_WINDOW_TITLES } from '@/data/desktopUI';

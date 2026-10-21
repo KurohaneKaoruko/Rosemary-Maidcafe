@@ -3,7 +3,7 @@
  * Tests maid system, customer system, menu system, finance system, facility system
  * Requirements: 2.x, 3.x, 4.x, 5.x, 6.x
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   generateRandomMaid,
   calculateEfficiency,

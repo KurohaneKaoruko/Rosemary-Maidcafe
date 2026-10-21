@@ -2,8 +2,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 const projectRoot = process.cwd();
-const assetsDir = path.join(projectRoot, "src-next", "assets", "maid-image");
-const outputFile = path.join(assetsDir, "index.ts");
+const assetsDir = path.join(projectRoot, "public", "maid-image");
+const outputFile = path.join(projectRoot, "src", "assets", "maid-image", "index.ts");
 const supportedExt = new Set([".png", ".jpg", ".jpeg", ".webp", ".avif"]);
 
 const toVarName = (fileName) => {
@@ -25,19 +25,15 @@ async function generate() {
   }
 
   const lines = [];
-  lines.push("import type { StaticImageData } from 'next/image';");
-  lines.push("");
-
-  for (const file of files) {
-    lines.push(`import ${toVarName(file)} from './${file}';`);
-  }
-
-  lines.push("");
-  lines.push("export type MaidImageAsset = StaticImageData | string;");
+  lines.push("/**");
+  lines.push(" * 女仆图片资源清单（由 scripts/generate-maid-image-manifest.mjs 自动生成）。");
+  lines.push(" * 所有图片放在 public/maid-image/ 下，通过 URL 直接引用（Vite 静态资源）。");
+  lines.push(" */");
+  lines.push("export type MaidImageAsset = string;");
   lines.push("");
   lines.push("export const maidImageAssets = {");
   for (const file of files) {
-    lines.push(`  '/maid-image/${file}': ${toVarName(file)},`);
+    lines.push(`  '/maid-image/${file}': '/maid-image/${file}',`);
   }
   lines.push("} as const satisfies Record<string, MaidImageAsset>;");
   lines.push("");
@@ -112,11 +108,12 @@ async function generate() {
   lines.push("}");
   lines.push("");
 
+  await fs.mkdir(path.dirname(outputFile), { recursive: true });
   await fs.writeFile(outputFile, lines.join("\n"), "utf8");
-  console.log(`Generated maid image manifest (${files.length} files): ${outputFile}`);
+  console.log(`[maid-manifest] wrote ${files.length} entries -> ${path.relative(projectRoot, outputFile)}`);
 }
 
 generate().catch((error) => {
-  console.error(error);
+  console.error("[maid-manifest] failed:", error);
   process.exit(1);
 });

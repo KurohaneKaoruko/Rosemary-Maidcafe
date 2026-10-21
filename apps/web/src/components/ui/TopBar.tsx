@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { formatGameTime, formatGold, formatDay, getSeasonIcon, formatSeason, formatReputation } from '@/utils/formatters';

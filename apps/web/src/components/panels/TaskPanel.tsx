@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useMemo } from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';

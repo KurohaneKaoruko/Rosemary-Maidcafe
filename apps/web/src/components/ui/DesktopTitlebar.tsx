@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { formatDay, formatGameTime } from '@/utils/formatters';

@@ -221,7 +221,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const notifications = [...state.notifications];
       let reputation = normalizeReputation(state.reputation);
       let tasks = state.tasks;
-      let staffing = useNativeStaffing
+      const staffing = useNativeStaffing
         ? normalizeStaffingState(state.staffing)
         : tickStaffingBoost(normalizeStaffingState(state.staffing), deltaMinutes);
       let activeIncident = state.activeIncident;

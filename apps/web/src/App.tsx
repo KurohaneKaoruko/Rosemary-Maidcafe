@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 import { GameProvider } from '@/components/game/GameProvider';
 import { AudioProvider } from '@/components/game/AudioProvider';
@@ -7,12 +5,12 @@ import { GameLoop } from '@/components/game/GameLoop';
 import { GameUI } from '@/components/game/GameUI';
 
 /**
- * 主页面组件
+ * 主应用组件
  * 集成 GameProvider、GameLoop 和 GameUI
  * 处理游戏加载状态
  * Requirements: 8.2
  */
-export default function Home() {
+export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 

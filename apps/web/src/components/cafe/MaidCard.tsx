@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { Maid, MaidRole, MaidPersonality } from '@/types';
 import { StaminaBar } from '@/components/ui/ProgressBar';

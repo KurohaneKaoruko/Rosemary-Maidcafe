@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState } from 'react';
 import { Achievement } from '@/types';
 import { useGame } from '@/components/game/GameProvider';

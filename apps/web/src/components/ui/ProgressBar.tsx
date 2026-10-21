@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 
 export type ProgressBarColor = 'pink' | 'green' | 'blue' | 'yellow' | 'red' | 'purple';

@@ -1,5 +1,3 @@
-'use client';
-
 import { Maid, Finance, GameStatistics, Facility } from '@/types';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';

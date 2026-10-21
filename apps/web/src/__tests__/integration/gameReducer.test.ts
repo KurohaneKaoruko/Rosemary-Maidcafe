@@ -91,6 +91,11 @@ describe('Game Reducer Integration Tests', () => {
       status: { isWorking: false, isResting: false, currentTask: null, servingCustomerId: null },
       mood: 80,
       stamina: 100,
+      fatigue: 0,
+      consecutiveWorkDays: 0,
+      preferredShift: 'morning',
+      skillPoints: 0,
+      skills: { service: 10, guestCare: 10, emergency: 10 },
       hireDate: Date.now(),
     });
 
@@ -510,6 +515,8 @@ describe('Game Reducer Integration Tests', () => {
 
   describe('Cafe Operations', () => {
     it('should keep reputation as an integer after comforting guests', () => {
+      state.isPaused = false;
+      state.isBusinessHours = true;
       const customer: Customer = {
         id: 'customer-1',
         type: 'regular',

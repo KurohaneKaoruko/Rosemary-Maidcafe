@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { CustomerDetailPanel } from '@/components/cafe/CustomerDetailPanel';

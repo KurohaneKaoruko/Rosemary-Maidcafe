@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { GameEvent, EventType, EventEffectTarget } from '@/types';
 import { Modal } from '@/components/ui/Modal';

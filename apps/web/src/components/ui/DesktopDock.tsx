@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useCallback } from 'react';
 import { useGame } from '@/components/game/GameProvider';
 import { isFloatingWindowPanel } from '@/data/desktopUI';

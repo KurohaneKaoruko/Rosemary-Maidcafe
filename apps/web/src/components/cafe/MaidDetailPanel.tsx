@@ -1,5 +1,3 @@
-'use client';
-
 import { Maid, MaidRole, MaidPersonality } from '@/types';
 import { MaidAvatar } from '@/components/ui/MaidAvatar';
 import { calculateEfficiency } from '@/systems/maidSystem';
@@ -203,13 +201,13 @@ function ProgressRow({
 }
 
 // Compact Stat Badge
-function StatBadge({ 
-  icon, 
-  label, 
-  value, 
+function StatBadge({
+  icon,
+  label: _label,
+  value,
   suffix = '',
   warning = false
-}: { 
+}: {
   icon: string; 
   label: string; 
   value: number;

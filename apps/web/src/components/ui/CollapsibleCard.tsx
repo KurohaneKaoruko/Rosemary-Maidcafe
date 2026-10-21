@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useRef, useEffect, ReactNode } from 'react';
 
 interface CollapsibleCardProps {

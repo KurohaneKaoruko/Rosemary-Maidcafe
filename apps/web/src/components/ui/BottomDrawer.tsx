@@ -1,5 +1,3 @@
-'use client';
-
 import React, { ReactNode, useEffect, useCallback, useRef, useState } from 'react';
 
 interface BottomDrawerProps {

@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { Customer, CustomerType, CustomerStatus } from '@/types';
 import { PatienceBar } from '@/components/ui/ProgressBar';
